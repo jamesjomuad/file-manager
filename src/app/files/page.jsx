@@ -7,13 +7,18 @@ import { FileToolbar } from "@/components/file-manager/file-toolbar";
 import { FileList } from "@/components/file-manager/file-list";
 import { FileGrid } from "@/components/file-manager/file-grid";
 import { FileContextMenu } from "@/components/file-manager/file-context-menu";
+import { FileDropZone } from "@/components/file-manager/file-drop-zone";
 import { ConfirmDialog } from "@/components/file-manager/confirm-dialog";
+import { useFavorites } from "@/hooks/use-favorites";
+import { useRecentFiles } from "@/hooks/use-recent-files";
 
 /**
  * Main file explorer page
  */
 export default function FilesPage() {
   const router = useRouter();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const { addRecent } = useRecentFiles();
   const [files, setFiles] = useState([]);
   const [currentPath, setCurrentPath] = useState("");
   const [viewMode, setViewMode] = useState("grid");
@@ -29,6 +34,11 @@ export default function FilesPage() {
   
   // Confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState(null);
+
+  // Upload state
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
 
   /**
    * Fetch files for the current path
@@ -180,11 +190,13 @@ export default function FilesPage() {
         setCurrentPath(file.path);
         setSelectedFiles(new Set());
       } else {
+        // Track this file as recently opened
+        addRecent(file.path);
         // Navigate to editor for files
         router.push(`/editor?path=${encodeURIComponent(file.path)}`);
       }
     },
-    [router]
+    [router, addRecent]
   );
 
   /**
@@ -282,9 +294,9 @@ export default function FilesPage() {
     
     setConfirmDialog({
       file: { name: `${selectedFiles.size} items`, type: "directory" },
-      title: `Delete ${selectedFiles.size} items`,
-      message: `Are you sure you want to delete ${selectedFiles.size} selected items? This action cannot be undone.`,
-      confirmLabel: "Delete All",
+      title: `Move to Trash`,
+      message: `Are you sure you want to move ${selectedFiles.size} selected items to trash? You can restore them later from the Trash section.`,
+      confirmLabel: "Move to Trash",
       isBulk: true,
     });
   }, [selectedFiles]);
@@ -386,9 +398,9 @@ export default function FilesPage() {
   const handleDelete = useCallback((file) => {
     setConfirmDialog({
       file,
-      title: `Delete ${file.type === "directory" ? "Folder" : "File"}`,
-      message: `Are you sure you want to delete "${file.name}"? This action cannot be undone.`,
-      confirmLabel: "Delete",
+      title: `Move to Trash`,
+      message: `Are you sure you want to move "${file.name}" to trash? You can restore it later from the Trash section.`,
+      confirmLabel: "Move to Trash",
     });
   }, []);
 
@@ -485,6 +497,105 @@ export default function FilesPage() {
     [fetchFiles]
   );
 
+  /**
+   * Handle file upload (from button or drag & drop)
+   * @param {File[]} files - Files to upload
+   */
+  const handleUpload = useCallback(
+    async (files) => {
+      if (!files || files.length === 0) return;
+
+      setUploading(true);
+      setUploadError(null);
+
+      try {
+        const formData = new FormData();
+        for (const file of files) {
+          formData.append("file", file);
+        }
+        // Add destination path
+        formData.append("path", currentPath);
+
+        const response = await fetch("/api/files/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Upload failed");
+        }
+
+        // Refresh the file list
+        fetchFiles();
+      } catch (error) {
+        console.error("Error uploading:", error);
+        setUploadError(error.message);
+      } finally {
+        setUploading(false);
+      }
+    },
+    [currentPath, fetchFiles]
+  );
+
+  /**
+   * Handle file download
+   * @param {Object} file - File to download
+   */
+  const handleDownload = useCallback((file) => {
+    // Create a temporary link element and trigger download
+    const url = `/api/files/${file.path}?action=download`;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, []);
+
+  /**
+   * Handle drag enter on file listing area
+   * @param {React.DragEvent} e
+   */
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes("Files")) {
+      setDragActive(true);
+    }
+  }, []);
+
+  /**
+   * Handle drag leave on file listing area
+   * @param {React.DragEvent} e
+   */
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget === e.target) {
+      setDragActive(false);
+    }
+  }, []);
+
+  /**
+   * Handle drop on file listing area
+   * @param {React.DragEvent} e
+   */
+  const handleDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragActive(false);
+
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) {
+        handleUpload(files);
+      }
+    },
+    [handleUpload]
+  );
+
   return (
     <AppShell
       currentPath="/files"
@@ -498,6 +609,8 @@ export default function FilesPage() {
         currentPath={currentPath}
         onCreateFolder={handleCreateFolder}
         onCreateFile={handleCreateFile}
+        onUpload={handleUpload}
+        uploading={uploading}
         onRefresh={handleRefresh}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -510,11 +623,30 @@ export default function FilesPage() {
         onSortChange={handleSortChange}
       />
 
-      {/* File listing */}
-      <div 
-        className="flex-1 min-h-0 overflow-auto"
+      {/* File listing area with drag & drop support */}
+      <div
+        className="flex-1 min-h-0 overflow-auto relative"
         onClick={handleClearSelection}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
       >
+        {/* Drag & drop overlay */}
+        <FileDropZone
+          visible={dragActive}
+          onDrop={handleUpload}
+          uploading={uploading}
+        />
+
+        {uploadError && (
+          <div className="mx-4 mt-4 p-3 rounded-lg bg-error-50 border border-error-200 dark:bg-error-950 dark:border-error-800">
+            <p className="text-body-regular text-error-600 dark:text-error-400">
+              {uploadError}
+            </p>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <p className="text-body-regular text-text-secondary">Loading...</p>
@@ -529,6 +661,8 @@ export default function FilesPage() {
             sortBy={sortBy}
             sortOrder={sortOrder}
             onSortChange={handleSortChange}
+            isFavorite={isFavorite}
+            onToggleFavorite={toggleFavorite}
           />
         ) : (
           <FileGrid
@@ -537,6 +671,8 @@ export default function FilesPage() {
             onSelect={handleSelectFile}
             selectedFiles={selectedFiles}
             onContextMenu={handleContextMenu}
+            isFavorite={isFavorite}
+            onToggleFavorite={toggleFavorite}
           />
         )}
       </div>
@@ -551,6 +687,7 @@ export default function FilesPage() {
           onDelete={handleDelete}
           onCopy={handleCopy}
           onMove={handleMove}
+          onDownload={handleDownload}
         />
       )}
 

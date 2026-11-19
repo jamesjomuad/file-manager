@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { cx } from "@/utils/cx";
 import { FileIcon } from "@/components/file-manager/file-icon";
-import { RiSortAsc, RiSortDesc } from "@remixicon/react";
+import { RiSortAsc, RiSortDesc, RiStarLine, RiStarFill } from "@remixicon/react";
 
 /**
  * Format file size to human-readable string
@@ -93,6 +93,8 @@ function SortableHeader({ field, label, sortBy, sortOrder, onSortChange, align =
  * @param {string} props.sortBy - Current sort field
  * @param {string} props.sortOrder - Current sort order
  * @param {(sortBy: string) => void} props.onSortChange - Sort change callback
+ * @param {(path: string) => boolean} [props.isFavorite] - Check if a path is favorited
+ * @param {(path: string) => void} [props.onToggleFavorite] - Toggle favorite for a path
  */
 export function FileList({
   files = [],
@@ -103,7 +105,11 @@ export function FileList({
   sortBy = "name",
   sortOrder = "asc",
   onSortChange,
+  isFavorite,
+  onToggleFavorite,
 }) {
+  const showFavorites = typeof isFavorite === "function" && typeof onToggleFavorite === "function";
+
   const handleRowClick = useCallback(
     (file, event) => {
       event.stopPropagation();
@@ -127,6 +133,20 @@ export function FileList({
       onContextMenu?.(file, { x: e.clientX, y: e.clientY });
     },
     [onContextMenu]
+  );
+
+  /**
+   * Handle favorite toggle click — stop propagation so row selection doesn't fire.
+   * @param {React.MouseEvent} e
+   * @param {Object} file
+   */
+  const handleFavoriteClick = useCallback(
+    (e, file) => {
+      e.stopPropagation();
+      e.preventDefault();
+      onToggleFavorite?.(file.path);
+    },
+    [onToggleFavorite]
   );
 
   if (!files || files.length === 0) {
@@ -175,11 +195,13 @@ export function FileList({
               sortOrder={sortOrder}
               onSortChange={onSortChange}
             />
+            {showFavorites && <th className="w-10" />}
           </tr>
         </thead>
         <tbody>
           {files.map((file) => {
             const isSelected = selectedFiles.has(file.path);
+            const favorited = showFavorites && isFavorite(file.path);
 
             return (
               <tr
@@ -229,6 +251,29 @@ export function FileList({
                       : getTypeLabel(file.extension)}
                   </span>
                 </td>
+
+                {/* Favorite star */}
+                {showFavorites && (
+                  <td className="px-2 py-2">
+                    <button
+                      type="button"
+                      onClick={(e) => handleFavoriteClick(e, file)}
+                      className={cx(
+                        "p-1 rounded transition-colors",
+                        "hover:bg-background-secondary-hover",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+                      )}
+                      aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
+                      aria-pressed={favorited}
+                    >
+                      {favorited ? (
+                        <RiStarFill className="size-4 text-accent-500" />
+                      ) : (
+                        <RiStarLine className="size-4 text-text-tertiary hover:text-accent-500" />
+                      )}
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}

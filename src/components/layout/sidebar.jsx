@@ -2,12 +2,30 @@
 
 import Link from "next/link";
 import { cx } from "@/utils/cx";
+import { useFavorites } from "@/hooks/use-favorites";
+import { useRecentFiles } from "@/hooks/use-recent-files";
+import { useState, useEffect } from "react";
 import {
   RiFolderLine,
   RiTimeLine,
   RiStarLine,
   RiSettings3Line,
+  RiDeleteBinLine,
 } from "@remixicon/react";
+
+/**
+ * Count badge shown next to a sidebar nav item.
+ * @param {Object} props
+ * @param {number} props.count - Number to display
+ */
+function CountBadge({ count }) {
+  if (!count) return null;
+  return (
+    <span className="ms-auto text-caption-1-semibold text-text-tertiary bg-background-secondary-hover rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 
 /**
  * Sidebar navigation component
@@ -15,11 +33,36 @@ import {
  * @param {string} props.currentPath - Current route path for highlighting active item
  */
 export function Sidebar({ currentPath = "/files" }) {
+  const { favorites } = useFavorites();
+  const { recentFiles } = useRecentFiles();
+  const [trashCount, setTrashCount] = useState(0);
+
+  // Fetch trash count
+  useEffect(() => {
+    const fetchTrashCount = async () => {
+      try {
+        const response = await fetch("/api/trash");
+        if (response.ok) {
+          const data = await response.json();
+          setTrashCount(data.data?.length || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching trash count:", error);
+      }
+    };
+
+    fetchTrashCount();
+    // Refresh trash count every 30 seconds
+    const interval = setInterval(fetchTrashCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const navItems = [
-    { label: "Files", href: "/files", icon: RiFolderLine },
-    { label: "Recent", href: "/files?view=recent", icon: RiTimeLine },
-    { label: "Favorites", href: "/files?view=favorites", icon: RiStarLine },
-    { label: "Settings", href: "/settings", icon: RiSettings3Line },
+    { label: "Files", href: "/files", icon: RiFolderLine, count: null },
+    { label: "Favorites", href: "/favorites", icon: RiStarLine, count: favorites.length },
+    { label: "Recent", href: "/recent", icon: RiTimeLine, count: recentFiles.length },
+    { label: "Trash", href: "/trash", icon: RiDeleteBinLine, count: trashCount },
+    { label: "Settings", href: "/settings", icon: RiSettings3Line, count: null },
   ];
 
   const isActive = (href) => {
@@ -60,6 +103,7 @@ export function Sidebar({ currentPath = "/files" }) {
             >
               <Icon className="size-5" aria-hidden />
               <span>{item.label}</span>
+              <CountBadge count={item.count} />
             </Link>
           );
         })}

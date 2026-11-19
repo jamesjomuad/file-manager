@@ -1,11 +1,13 @@
 "use client";
 
+import { useRef } from "react";
 import { cx } from "@/utils/cx";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import {
   RiFolderAddLine,
   RiFileAddLine,
+  RiUploadLine,
   RiRefreshLine,
   RiSearchLine,
   RiSortAsc,
@@ -21,6 +23,8 @@ import {
  * @param {string} props.currentPath - Current directory path
  * @param {() => void} props.onCreateFolder - Create folder callback
  * @param {() => void} props.onCreateFile - Create file callback
+ * @param {(files: File[]) => void} props.onUpload - Upload callback
+ * @param {boolean} props.uploading - Whether upload is in progress
  * @param {() => void} props.onRefresh - Refresh callback
  * @param {string} props.searchQuery - Current search query
  * @param {(query: string) => void} props.onSearchChange - Search query change callback
@@ -36,6 +40,8 @@ export function FileToolbar({
   currentPath,
   onCreateFolder,
   onCreateFile,
+  onUpload,
+  uploading = false,
   onRefresh,
   searchQuery,
   onSearchChange,
@@ -47,8 +53,31 @@ export function FileToolbar({
   sortOrder = "asc",
   onSortChange,
 }) {
+  const fileInputRef = useRef(null);
   const hasSelection = selectedCount > 0;
   const allSelected = selectedCount === totalCount && totalCount > 0;
+
+  /**
+   * Trigger the file picker dialog
+   */
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  /**
+   * Handle file selection from the file picker
+   * @param {React.ChangeEvent<HTMLInputElement>} e
+   */
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0 && onUpload) {
+      onUpload(files);
+    }
+    // Reset input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-background-primary-default border-b border-separator-border shrink-0">
@@ -70,6 +99,24 @@ export function FileToolbar({
         >
           New File
         </Button>
+        <Button
+          variant="secondary"
+          size="small"
+          leadingIcon={RiUploadLine}
+          onClick={handleUploadClick}
+          disabled={uploading}
+        >
+          {uploading ? "Uploading..." : "Upload"}
+        </Button>
+        {/* Hidden file input for upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileChange}
+          aria-label="Upload files"
+        />
 
         {/* Bulk actions when files are selected */}
         {hasSelection && (

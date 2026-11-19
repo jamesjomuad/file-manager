@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { validatePath, ROOT_DIR } from './security.js';
+import { validatePath, ROOT_DIR, ensureWithinRoot } from './security.js';
 import { getFileCategory, formatFileSize, sanitizeFilename } from './utils.js';
 
 /**
@@ -69,9 +69,9 @@ export async function readFile(filePath) {
  */
 export async function writeFile(filePath, content) {
   const { absolutePath: parentPath } = await validatePath(path.dirname(filePath));
-  const fullPath = path.join(absolutePath, path.basename(filePath));
-  // Validate the final path is within root
-  await validatePath(path.relative(ROOT_DIR, fullPath));
+  const fullPath = path.join(parentPath, path.basename(filePath));
+  // Validate the final path is within root (no existence check needed)
+  ensureWithinRoot(fullPath);
   await fs.writeFile(fullPath, content, 'utf-8');
   const stats = await fs.stat(fullPath);
   return {
@@ -92,7 +92,7 @@ export async function writeFile(filePath, content) {
 export async function createDirectory(dirPath) {
   const { absolutePath: parentPath } = await validatePath(path.dirname(dirPath));
   const fullPath = path.join(parentPath, path.basename(dirPath));
-  await validatePath(path.relative(ROOT_DIR, fullPath));
+  ensureWithinRoot(fullPath);
   await fs.mkdir(fullPath, { recursive: false });
   return {
     name: path.basename(dirPath),

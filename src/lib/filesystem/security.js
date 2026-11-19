@@ -38,4 +38,17 @@ export async function validatePath(userPath) {
   }
 }
 
-export { ROOT_DIR };
+/**
+ * Check that an absolute path is within ROOT_DIR (no existence check).
+ * @param {string} absolutePath - Absolute path to check
+ * @throws {Error} If path escapes root
+ */
+function ensureWithinRoot(absolutePath) {
+  const normalizedRoot = path.normalize(ROOT_DIR);
+  const normalized = path.normalize(absolutePath);
+  if (!normalized.startsWith(normalizedRoot + path.sep) && normalized !== normalizedRoot) {
+    throw Object.assign(new Error('Path traversal detected'), { status: 403 });
+  }
+}
+
+export { ROOT_DIR, ensureWithinRoot };

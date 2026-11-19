@@ -6,6 +6,7 @@ import {
   RiEditLine,
   RiDeleteBinLine,
   RiFileCopyLine,
+  RiDownloadLine,
   RiDraggable,
 } from '@remixicon/react';
 
@@ -19,6 +20,7 @@ import {
  * @param {(file: Object) => void} props.onDelete - Delete callback
  * @param {(file: Object) => void} props.onCopy - Copy callback
  * @param {(file: Object) => void} props.onMove - Move callback
+ * @param {(file: Object) => void} props.onDownload - Download callback (files only)
  */
 export function FileContextMenu({
   file,
@@ -28,6 +30,7 @@ export function FileContextMenu({
   onDelete,
   onCopy,
   onMove,
+  onDownload,
 }) {
   const menuRef = useRef(null);
 
@@ -126,6 +129,21 @@ export function FileContextMenu({
         <span>Move</span>
       </button>
 
+      {/* Download option - only for files, not directories */}
+      {file?.type !== 'directory' && onDownload && (
+        <button
+          onClick={() => handleAction(onDownload)}
+          className={cx(
+            'w-full px-3 py-2 flex items-center gap-3 text-start',
+            'text-body-regular text-text-primary',
+            'hover:bg-background-secondary-hover transition-colors'
+          )}
+        >
+          <RiDownloadLine className="w-4 h-4 text-foreground-icon-secondary" />
+          <span>Download</span>
+        </button>
+      )}
+
       <div className="my-1 border-t border-separator-border" />
 
       <button
@@ -137,7 +155,7 @@ export function FileContextMenu({
         )}
       >
         <RiDeleteBinLine className="w-4 h-4" />
-        <span>Delete</span>
+        <span>Move to Trash</span>
       </button>
     </div>
   );
