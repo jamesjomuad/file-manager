@@ -4,11 +4,10 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { TabBar } from '@/components/editor/tab-bar';
-import { CodeEditor } from '@/components/editor/code-editor';
-import { TextEditor } from '@/components/editor/text-editor';
+import { MonacoEditor } from '@/components/editor/monaco-editor';
 import { Button } from '@/components/base/buttons/button';
 import { useEditorTabs } from '@/hooks/use-editor-tabs';
-import { isCodeFile } from '@/lib/editor/file-types';
+import { detectLanguage, getLanguageName } from '@/lib/monaco/languages';
 import {
   RiFileTextLine,
   RiSaveLine,
@@ -20,9 +19,8 @@ import {
  * File editor content component with multi-tab support.
  *
  * Uses the `useEditorTabs` hook to manage open file tabs, their content,
- * and unsaved changes. Renders a tab bar at the top and switches between
- * `CodeEditor` (for code files) and `TextEditor` (for plain text) based
- * on the active tab's file type.
+ * and unsaved changes. Renders a tab bar at the top and a Monaco Editor
+ * for the active tab.
  *
  * Keyboard shortcuts:
  * - Ctrl/Cmd+S — Save active tab
@@ -51,7 +49,6 @@ function EditorContent() {
   } = useEditorTabs();
 
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   // Open file from URL on mount (or when URL changes)
   useEffect(() => {
@@ -87,10 +84,8 @@ function EditorContent() {
     try {
       setSaving(true);
       await saveTab(activeTabIndex);
-      // TODO: Show success toast
     } catch (error) {
       console.error('Failed to save:', error);
-      // TODO: Show error toast
     } finally {
       setSaving(false);
     }
@@ -167,8 +162,8 @@ function EditorContent() {
     );
   }
 
-  // Determine which editor to use based on file type
-  const useCodeEditor = isCodeFile(activeTab.path);
+  // Language name for display in header
+  const languageName = getLanguageName(detectLanguage(activeTab.path));
 
   return (
     <AppShell currentPath="/editor">
@@ -196,7 +191,7 @@ function EditorContent() {
               </span>
             )}
             <span className="text-caption-1-regular text-text-tertiary">
-              — {activeTab.language}
+              — {languageName}
             </span>
           </div>
 
@@ -232,18 +227,11 @@ function EditorContent() {
 
         {/* Editor content */}
         <div className="flex-1 overflow-hidden">
-          {useCodeEditor ? (
-            <CodeEditor
-              value={activeTab.content}
-              onChange={handleContentChange}
-              filePath={activeTab.path}
-            />
-          ) : (
-            <TextEditor
-              value={activeTab.content}
-              onChange={handleContentChange}
-            />
-          )}
+          <MonacoEditor
+            value={activeTab.content}
+            onChange={handleContentChange}
+            filePath={activeTab.path}
+          />
         </div>
       </div>
     </AppShell>

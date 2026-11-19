@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@internationalized/date": "^3.12.1",
+    "@monaco-editor/react": "^4.7.0",
     "@remixicon/react": "^4.9.0",
+    "monaco-editor": "^0.57.0",
     "motion": "^12.42.2",
     "next": "16.4.6",
     "prismjs": "^1.30.0",
