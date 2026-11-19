@@ -8,6 +8,7 @@ import {
   RiFileCopyLine,
   RiDownloadLine,
   RiDraggable,
+  RiEyeLine,
 } from '@remixicon/react';
 
 /**
@@ -16,6 +17,7 @@ import {
  * @param {Object} props.file - File being acted on
  * @param {{ x: number, y: number }} props.position - Menu position
  * @param {() => void} props.onClose - Close callback
+ * @param {(file: Object) => void} props.onPreview - Preview callback
  * @param {(file: Object) => void} props.onRename - Rename callback
  * @param {(file: Object) => void} props.onDelete - Delete callback
  * @param {(file: Object) => void} props.onCopy - Copy callback
@@ -26,6 +28,7 @@ export function FileContextMenu({
   file,
   position,
   onClose,
+  onPreview,
   onRename,
   onDelete,
   onCopy,
@@ -104,6 +107,21 @@ export function FileContextMenu({
         <RiEditLine className="w-4 h-4 text-foreground-icon-secondary" />
         <span>Rename</span>
       </button>
+
+      {/* Preview option - only for files that can be previewed */}
+      {file?.type !== 'directory' && onPreview && (
+        <button
+          onClick={() => handleAction(onPreview)}
+          className={cx(
+            'w-full px-3 py-2 flex items-center gap-3 text-start',
+            'text-body-regular text-text-primary',
+            'hover:bg-background-secondary-hover transition-colors'
+          )}
+        >
+          <RiEyeLine className="w-4 h-4 text-foreground-icon-secondary" />
+          <span>Preview</span>
+        </button>
+      )}
 
       <button
         onClick={() => handleAction(onCopy)}

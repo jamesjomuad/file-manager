@@ -297,13 +297,17 @@ FILE_MANAGER_ROOT=./data
 ### Phase 5: Preview and Editor
 
 **Objectives:**
-- [ ] Image preview (jpg, png, gif, svg, webp)
-- [ ] PDF preview
-- [ ] Text file preview
-- [ ] Code editor with syntax highlighting
-- [ ] Multiple editor tabs
-- [ ] Unsaved changes handling
-- [ ] Auto-save (optional)
+- [x] File preview system with modal overlay
+- [x] Image preview (jpg, png, gif, svg, webp)
+- [x] PDF preview with iframe
+- [x] Text file preview with line numbers
+- [x] Code editor with Prism syntax highlighting
+- [x] Multiple editor tabs with state management
+- [x] Unsaved changes tracking and indicators
+- [x] Keyboard shortcuts (Ctrl+S, Ctrl+W, Ctrl+Tab)
+- [x] Tab context menu (close, close others, close all)
+- [x] Language auto-detection from file extension
+- [x] Dark mode support for syntax highlighting
 
 ## Coding Conventions
 

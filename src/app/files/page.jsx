@@ -9,8 +9,10 @@ import { FileGrid } from "@/components/file-manager/file-grid";
 import { FileContextMenu } from "@/components/file-manager/file-context-menu";
 import { FileDropZone } from "@/components/file-manager/file-drop-zone";
 import { ConfirmDialog } from "@/components/file-manager/confirm-dialog";
+import { FilePreviewModal } from "@/components/file-manager/file-preview-modal";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
+import { canPreview } from "@/lib/file-type";
 
 /**
  * Main file explorer page
@@ -39,6 +41,9 @@ export default function FilesPage() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+
+  // Preview modal state
+  const [previewFile, setPreviewFile] = useState(null);
 
   /**
    * Fetch files for the current path
@@ -555,6 +560,30 @@ export default function FilesPage() {
   }, []);
 
   /**
+   * Handle file preview
+   * @param {Object} file - File to preview
+   */
+  const handlePreview = useCallback((file) => {
+    if (file.type === 'directory') return;
+    
+    // Check if file can be previewed
+    if (!canPreview(file.extension)) {
+      // Fall back to opening in editor for unsupported types
+      router.push(`/editor?path=${encodeURIComponent(file.path)}`);
+      return;
+    }
+    
+    setPreviewFile(file);
+  }, [router]);
+
+  /**
+   * Handle close preview
+   */
+  const handleClosePreview = useCallback(() => {
+    setPreviewFile(null);
+  }, []);
+
+  /**
    * Handle drag enter on file listing area
    * @param {React.DragEvent} e
    */
@@ -683,6 +712,7 @@ export default function FilesPage() {
           file={contextMenu.file}
           position={contextMenu.position}
           onClose={handleCloseContextMenu}
+          onPreview={handlePreview}
           onRename={handleRename}
           onDelete={handleDelete}
           onCopy={handleCopy}
@@ -700,6 +730,13 @@ export default function FilesPage() {
         onConfirm={confirmDialog?.isBulk ? handleConfirmBulkDelete : handleConfirmDelete}
         onCancel={() => setConfirmDialog(null)}
         loading={confirmDialog?.loading || false}
+      />
+
+      {/* File preview modal */}
+      <FilePreviewModal
+        open={!!previewFile}
+        file={previewFile}
+        onClose={handleClosePreview}
       />
     </AppShell>
   );
