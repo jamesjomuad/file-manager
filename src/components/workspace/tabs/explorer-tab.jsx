@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { cx } from "@/utils/cx";
 import { FileToolbar } from "@/components/file-manager/file-toolbar";
 import { FileList } from "@/components/file-manager/file-list";
 import { FileGrid } from "@/components/file-manager/file-grid";
@@ -31,7 +32,38 @@ import {
   RiArchiveLine,
   RiFolderDownloadLine,
   RiFolderZipLine,
+  RiFileCopyLine,
+  RiLink,
+  RiFileTextLine,
+  RiCheckLine,
+  RiErrorWarningLine,
 } from "@remixicon/react";
+import { copyToClipboard } from "@/lib/clipboard";
+
+/**
+ * Join rootPath and relative path using the separator detected from rootPath.
+ * Both come from the server and use OS-native separators.
+ * @param {string} rootPath
+ * @param {string} relativePath
+ * @returns {string}
+ */
+function toAbsolutePath(rootPath, relativePath) {
+  if (!rootPath) return relativePath;
+  const sep = rootPath.includes("\\") ? "\\" : "/";
+  const cleanRoot = rootPath.endsWith(sep) || rootPath.endsWith("/")
+    ? rootPath.slice(0, -1)
+    : rootPath;
+  return `${cleanRoot}${sep}${relativePath}`;
+}
+
+/**
+ * Normalize a server-returned relative path to use forward slashes.
+ * @param {string} relativePath
+ * @returns {string}
+ */
+function normalizeRelativePath(relativePath) {
+  return relativePath.replace(/\\/g, "/");
+}
 
 /**
  * Decode a splat path from React Router into a folder path.
@@ -83,6 +115,30 @@ export function ExplorerTabContent({ tab }) {
 
   // Preview modal state
   const [previewFile, setPreviewFile] = useState(null);
+
+  // Root path from server (for absolute path copy)
+  const rootPathRef = useRef("");
+
+  // Toast notification state
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
+
+  /**
+   * Show a brief toast notification
+   * @param {{ message: string, type: 'success' | 'error' }} opts
+   */
+  const showToast = useCallback(({ message, type = "success" }) => {
+    setToast({ message, type });
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  // Cleanup toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   // Get the folder path from the URL splat parameter
   const routePath = decodeSplatPath(params["*"] || "");
@@ -150,6 +206,9 @@ export function ExplorerTabContent({ tab }) {
 
       const data = await response.json();
       setFiles(data.data || data.files || []);
+      if (data.rootPath) {
+        rootPathRef.current = data.rootPath;
+      }
     } catch (error) {
       console.error("Error fetching files:", error);
       setFiles([]);
@@ -528,6 +587,78 @@ export function ExplorerTabContent({ tab }) {
   }, [fetchFiles]);
 
   /**
+   * Get the list of files to act on: when multiple files are selected,
+   * return all selected files (preserving order); otherwise return [file].
+   * @param {Object} file - The file that was right-clicked
+   * @returns {Object[]}
+   */
+  const getTargetFiles = useCallback(
+    (file) => {
+      if (selectedFiles.size > 1) {
+        // Return selected files in their display order
+        return files.filter((f) => selectedFiles.has(f.path));
+      }
+      return [file];
+    },
+    [selectedFiles, files],
+  );
+
+  /**
+   * Copy absolute filesystem path(s) to clipboard
+   */
+  const handleCopyPath = useCallback(
+    async (file) => {
+      const targets = getTargetFiles(file);
+      const root = rootPathRef.current;
+      const lines = targets.map((f) => toAbsolutePath(root, f.path));
+      const text = lines.join("\n");
+      const ok = await copyToClipboard(text);
+      showToast(
+        ok
+          ? { message: targets.length === 1 ? "Path copied" : `${targets.length} paths copied` }
+          : { message: "Failed to copy to clipboard", type: "error" },
+      );
+    },
+    [getTargetFiles, showToast],
+  );
+
+  /**
+   * Copy relative path(s) to clipboard (relative to filesystem root)
+   */
+  const handleCopyRelativePath = useCallback(
+    async (file) => {
+      const targets = getTargetFiles(file);
+      const lines = targets.map((f) => normalizeRelativePath(f.path));
+      const text = lines.join("\n");
+      const ok = await copyToClipboard(text);
+      showToast(
+        ok
+          ? { message: targets.length === 1 ? "Relative path copied" : `${targets.length} relative paths copied` }
+          : { message: "Failed to copy to clipboard", type: "error" },
+      );
+    },
+    [getTargetFiles, showToast],
+  );
+
+  /**
+   * Copy filename(s) to clipboard
+   */
+  const handleCopyFilename = useCallback(
+    async (file) => {
+      const targets = getTargetFiles(file);
+      const lines = targets.map((f) => f.name);
+      const text = lines.join("\n");
+      const ok = await copyToClipboard(text);
+      showToast(
+        ok
+          ? { message: targets.length === 1 ? "Filename copied" : `${targets.length} filenames copied` }
+          : { message: "Failed to copy to clipboard", type: "error" },
+      );
+    },
+    [getTargetFiles, showToast],
+  );
+
+  /**
    * Handle context menu action from BoardUI ContextMenu
    * @param {string|symbol} key - The action id
    * @param {Object} file - The file being acted on
@@ -602,8 +733,17 @@ export function ExplorerTabContent({ tab }) {
           },
         });
         break;
+      case "copy-path":
+        handleCopyPath(file);
+        break;
+      case "copy-relative-path":
+        handleCopyRelativePath(file);
+        break;
+      case "copy-filename":
+        handleCopyFilename(file);
+        break;
     }
-  }, [handlePreview, handleRename, openTab, currentPath, handleRefresh]);
+  }, [handlePreview, handleRename, openTab, currentPath, handleRefresh, handleCopyPath, handleCopyRelativePath, handleCopyFilename]);
 
   /**
    * Render context menu for a file (used by FileList/FileGrid)
@@ -663,6 +803,17 @@ export function ExplorerTabContent({ tab }) {
             </ContextMenuItem>
           </>
         )}
+        <ContextMenuSeparator />
+        {/* Copy section */}
+        <ContextMenuItem id="copy-path" icon={RiLink}>
+          Copy Path
+        </ContextMenuItem>
+        <ContextMenuItem id="copy-relative-path" icon={RiFileCopyLine}>
+          Copy Relative Path
+        </ContextMenuItem>
+        <ContextMenuItem id="copy-filename" icon={RiFileTextLine}>
+          Copy Filename
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem id="delete" icon={RiDeleteBinLine} variant="danger">
           Delete
@@ -892,6 +1043,29 @@ export function ExplorerTabContent({ tab }) {
             handleRefresh();
           }}
         />
+
+        {/* Toast notification */}
+        {toast && (
+          <div
+            className={cx(
+              "fixed bottom-4 left-1/2 -translate-x-1/2 z-50",
+              "flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg",
+              "text-body-regular transition-all",
+              toast.type === "error"
+                ? "bg-background-error text-text-primary border border-border-error"
+                : "bg-background-success text-text-primary border border-border-success",
+            )}
+            role="status"
+            aria-live="polite"
+          >
+            {toast.type === "error" ? (
+              <RiErrorWarningLine className="w-4 h-4" />
+            ) : (
+              <RiCheckLine className="w-4 h-4" />
+            )}
+            {toast.message}
+          </div>
+        )}
       </div>
     </FileDropZone>
   );

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listDirectory, createDirectory, writeFile } from '@/lib/filesystem/service';
+import { ROOT_DIR } from '@/lib/filesystem/security';
 
 /**
  * GET /api/files?path=... - List directory contents
@@ -9,7 +10,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const dirPath = searchParams.get('path') || '';
     const items = await listDirectory(dirPath);
-    return NextResponse.json({ success: true, data: items });
+    return NextResponse.json({ success: true, data: items, rootPath: ROOT_DIR });
   } catch (error) {
     console.error('GET /api/files error:', error);
     return NextResponse.json(
