@@ -301,13 +301,57 @@ FILE_MANAGER_ROOT=./data
 - [x] Image preview (jpg, png, gif, svg, webp)
 - [x] PDF preview with iframe
 - [x] Text file preview with line numbers
-- [x] Code editor with Prism syntax highlighting
+- [x] Monaco Editor integration (replaced Prism.js-based editor)
 - [x] Multiple editor tabs with state management
 - [x] Unsaved changes tracking and indicators
-- [x] Keyboard shortcuts (Ctrl+S, Ctrl+W, Ctrl+Tab)
+- [x] Keyboard shortcuts (Ctrl+S, Ctrl+W, Ctrl+Tab, Ctrl+F, Ctrl+H)
 - [x] Tab context menu (close, close others, close all)
 - [x] Language auto-detection from file extension
-- [x] Dark mode support for syntax highlighting
+- [x] 10 Monaco themes matching app themes
+- [x] Theme sync (editor theme follows app theme)
+
+### Monaco Editor Integration
+
+**Location:** `src/components/editor/monaco-editor.jsx`
+
+**Architecture:**
+- `'use client'` + `next/dynamic` with `ssr: false` (browser-only)
+- Loaded from CDN (jsDelivr) — no webpack/vite config needed
+- `MonacoEditorLoader` (dynamic import) exported as `MonacoEditor`
+
+**Features:**
+- Syntax highlighting for 14+ languages (JS, TS, HTML, CSS, JSON, MD, PHP, Python, Java, SQL, XML, YAML, Bash, and more)
+- Line numbers, minimap, code folding, bracket matching with colorization
+- Find and replace (Ctrl+F, Ctrl+H)
+- Word wrap, auto-indent, multi-cursor, drag-and-drop
+- Read-only mode, configurable font size and minimap visibility
+- Smooth cursor animation, parameter hints, context menu
+
+**Theme Integration:**
+- `src/lib/monaco/monaco-themes.js` — 10 Monaco themes matching app themes
+- Themes registered on first mount (guarded by `themesRegisteredRef`)
+- Theme updates via `useEffect` when `currentTheme` changes
+- Light themes use `vs` base, dark themes use `vs-dark` base
+- Font family uses concrete values (CSS variables don't work in Monaco):
+  `"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+
+**Language Detection:**
+- `src/lib/monaco/languages.js` — Maps file extensions to Monaco language IDs
+- `detectLanguage(filePath)` — Returns language ID from extension
+- `getLanguageName(languageId)` — Returns human-readable language name
+- Covers: JavaScript, TypeScript, HTML, CSS/SCSS/LESS, JSON, YAML, XML, Markdown, Python, Java, PHP, Ruby, Go, Rust, Swift, Kotlin, C#, C, C++, Shell, SQL, Dockerfile, INI, TOML
+
+**Props:**
+- `value` — Editor content
+- `onChange` — Change handler
+- `filePath` — For language detection
+- `language` — Override language ID
+- `readOnly` — Read-only mode
+- `className` — Additional classes
+- `showMinimap` — Show/hide minimap (default: true)
+- `wordWrap` — Word wrap mode (default: 'on')
+- `fontSize` — Font size (default: 14)
+- `showLineNumbers` — Show/hide line numbers (default: true)
 
 ## Coding Conventions
 
