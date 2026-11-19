@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { cx } from '@/utils/cx';
 import { useUploadStore } from '@/stores/upload-store';
 import { Button } from '@/components/base/buttons/button';
@@ -14,10 +15,35 @@ import {
 /**
  * Upload queue display component.
  * Shows active uploads with progress bars and status.
+ * Auto-hides after all uploads complete successfully.
  */
 export function UploadQueue() {
-  const { uploadQueue, removeFile, clearCompleted, getStats } = useUploadStore();
+  const { uploadQueue, removeFile, clearCompleted, clearQueue, getStats } = useUploadStore();
   const stats = getStats();
+  const autoClearTimerRef = useRef(null);
+
+  // Auto-clear completed uploads after 3 seconds
+  useEffect(() => {
+    // Clear any existing timer
+    if (autoClearTimerRef.current) {
+      clearTimeout(autoClearTimerRef.current);
+      autoClearTimerRef.current = null;
+    }
+
+    // If we have items and all are complete or error, set auto-clear timer
+    if (uploadQueue.length > 0 && stats.uploading === 0 && stats.pending === 0) {
+      autoClearTimerRef.current = setTimeout(() => {
+        clearQueue();
+      }, 3000);
+    }
+
+    // Cleanup timer on unmount
+    return () => {
+      if (autoClearTimerRef.current) {
+        clearTimeout(autoClearTimerRef.current);
+      }
+    };
+  }, [uploadQueue.length, stats.uploading, stats.pending, clearQueue]);
 
   if (uploadQueue.length === 0) return null;
 
