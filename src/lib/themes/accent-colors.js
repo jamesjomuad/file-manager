@@ -22,7 +22,7 @@ export const defaultAccents = {
   'one-dark-pro': '#61afef',
   'tokyo-night': '#7aa2f7',
   'catppuccin-mocha': '#f5c2e7',
-  'github-dark-dimmed': '#539bf5',
+  'github-dark-dimmed': '#347d39',
   'nord': '#88c0d0',
   'github-light': '#0969da',
   'catppuccin-latte': '#1e66f5',
@@ -231,8 +231,8 @@ export function validateAccentColor(accentColor, themeId) {
     return { valid: false, issues };
   }
 
-  const bgColor = theme.colors['bg-primary'];
-  const textColor = theme.colors['text-primary'];
+  const bgColor = theme.tokens['--color-background-primary-default'];
+  const textColor = theme.tokens['--color-text-primary'];
 
   // Check accent against background for button text readability
   const accentOnBg = getContrastRatio(accentColor, bgColor);

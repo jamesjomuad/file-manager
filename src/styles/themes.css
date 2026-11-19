@@ -1,899 +1,21 @@
 /* ---------------------------------------------------------------------------
  * File Manager Theme System
  *
- * Theme architecture using data-theme attribute for theme selection.
- * Each theme defines a complete color palette via CSS custom properties.
- * Semantic BoardUI tokens map to theme colors for consistent UI.
+ * Each theme overrides BoardUI semantic tokens defined in theme.css.
+ * When a theme is active via [data-theme="..."], the Tailwind utilities
+ * (bg-background-primary-default, text-text-primary, etc.) automatically
+ * pick up the new values.
+ *
+ * The .dark class is managed by the ThemeProvider for BoardUI compatibility.
+ * Each theme directly overrides the CSS custom properties that BoardUI's
+ * @theme inline block re-exports as Tailwind utilities.
  *
  * Theme Selection: data-theme="theme-id" on <html>
- * Theme Mode: data-theme-mode="light|dark" on <html>
+ * Theme Mode: data-theme-mode="light|dark" on <html> (+ .dark class)
  * --------------------------------------------------------------------------- */
 
 /* =========================================================================
- * MIDNIGHT PRO (Default Dark Theme)
- * ========================================================================= */
-[data-theme="midnight-pro"] {
-  --color-bg-primary: #1e1e2e;
-  --color-bg-secondary: #181825;
-  --color-bg-tertiary: #11111b;
-  --color-bg-elevated: #252537;
-  --color-bg-overlay: #0f0f1a;
-
-  --color-text-primary: #cdd6f4;
-  --color-text-secondary: #a6adc8;
-  --color-text-tertiary: #6c7086;
-  --color-text-disabled: #45475a;
-
-  --color-border-default: #313244;
-  --color-border-subtle: #252537;
-  --color-border-strong: #45475a;
-
-  --color-button-primary-bg: #89b4fa;
-  --color-button-primary-text: #1e1e2e;
-  --color-button-primary-hover: #74c7ec;
-  --color-button-secondary-bg: #313244;
-  --color-button-secondary-text: #cdd6f4;
-  --color-button-secondary-hover: #45475a;
-
-  --color-editor-bg: #1e1e2e;
-  --color-editor-gutter: #181825;
-  --color-editor-line-highlight: #252537;
-  --color-editor-selection: #89b4fa40;
-  --color-editor-cursor: #f5e0dc;
-
-  --color-sidebar-bg: #181825;
-  --color-sidebar-item-hover: #252537;
-  --color-sidebar-item-active: #313244;
-
-  --color-success: #a6e3a1;
-  --color-warning: #f9e2af;
-  --color-error: #f38ba8;
-  --color-info: #89b4fa;
-
-  --color-syntax-keyword: #cba6f7;
-  --color-syntax-string: #a6e3a1;
-  --color-syntax-number: #fab387;
-  --color-syntax-comment: #6c7086;
-  --color-syntax-function: #89b4fa;
-  --color-syntax-variable: #f5c2e7;
-  --color-syntax-operator: #89dceb;
-
-  --color-scrollbar-track: #181825;
-  --color-scrollbar-thumb: #313244;
-  --color-scrollbar-thumb-hover: #45475a;
-
-  /* BoardUI semantic token mappings */
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * DRACULA
- * ========================================================================= */
-[data-theme="dracula"] {
-  --color-bg-primary: #282a36;
-  --color-bg-secondary: #21222c;
-  --color-bg-tertiary: #191a21;
-  --color-bg-elevated: #343746;
-  --color-bg-overlay: #15161c;
-
-  --color-text-primary: #f8f8f2;
-  --color-text-secondary: #bfbfbf;
-  --color-text-tertiary: #6272a4;
-  --color-text-disabled: #44475a;
-
-  --color-border-default: #44475a;
-  --color-border-subtle: #343746;
-  --color-border-strong: #6272a4;
-
-  --color-button-primary-bg: #bd93f9;
-  --color-button-primary-text: #282a36;
-  --color-button-primary-hover: #c3a5ff;
-  --color-button-secondary-bg: #44475a;
-  --color-button-secondary-text: #f8f8f2;
-  --color-button-secondary-hover: #6272a4;
-
-  --color-editor-bg: #282a36;
-  --color-editor-gutter: #21222c;
-  --color-editor-line-highlight: #343746;
-  --color-editor-selection: #44475a80;
-  --color-editor-cursor: #f8f8f2;
-
-  --color-sidebar-bg: #21222c;
-  --color-sidebar-item-hover: #343746;
-  --color-sidebar-item-active: #44475a;
-
-  --color-success: #50fa7b;
-  --color-warning: #f1fa8c;
-  --color-error: #ff5555;
-  --color-info: #8be9fd;
-
-  --color-syntax-keyword: #ff79c6;
-  --color-syntax-string: #f1fa8c;
-  --color-syntax-number: #bd93f9;
-  --color-syntax-comment: #6272a4;
-  --color-syntax-function: #50fa7b;
-  --color-syntax-variable: #ffb86c;
-  --color-syntax-operator: #ff79c6;
-
-  --color-scrollbar-track: #21222c;
-  --color-scrollbar-thumb: #44475a;
-  --color-scrollbar-thumb-hover: #6272a4;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * ONE DARK PRO
- * ========================================================================= */
-[data-theme="one-dark-pro"] {
-  --color-bg-primary: #282c34;
-  --color-bg-secondary: #21252b;
-  --color-bg-tertiary: #1b1f23;
-  --color-bg-elevated: #2c313a;
-  --color-bg-overlay: #181a1f;
-
-  --color-text-primary: #abb2bf;
-  --color-text-secondary: #848b98;
-  --color-text-tertiary: #5c6370;
-  --color-text-disabled: #4b5263;
-
-  --color-border-default: #3e4451;
-  --color-border-subtle: #2c313a;
-  --color-border-strong: #5c6370;
-
-  --color-button-primary-bg: #61afef;
-  --color-button-primary-text: #282c34;
-  --color-button-primary-hover: #79b8f5;
-  --color-button-secondary-bg: #3e4451;
-  --color-button-secondary-text: #abb2bf;
-  --color-button-secondary-hover: #5c6370;
-
-  --color-editor-bg: #282c34;
-  --color-editor-gutter: #21252b;
-  --color-editor-line-highlight: #2c313a;
-  --color-editor-selection: #3e445180;
-  --color-editor-cursor: #528bff;
-
-  --color-sidebar-bg: #21252b;
-  --color-sidebar-item-hover: #2c313a;
-  --color-sidebar-item-active: #3e4451;
-
-  --color-success: #98c379;
-  --color-warning: #e5c07b;
-  --color-error: #e06c75;
-  --color-info: #61afef;
-
-  --color-syntax-keyword: #c678dd;
-  --color-syntax-string: #98c379;
-  --color-syntax-number: #d19a66;
-  --color-syntax-comment: #5c6370;
-  --color-syntax-function: #61afef;
-  --color-syntax-variable: #e06c75;
-  --color-syntax-operator: #56b6c2;
-
-  --color-scrollbar-track: #21252b;
-  --color-scrollbar-thumb: #3e4451;
-  --color-scrollbar-thumb-hover: #5c6370;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * TOKYO NIGHT
- * ========================================================================= */
-[data-theme="tokyo-night"] {
-  --color-bg-primary: #1a1b26;
-  --color-bg-secondary: #16161e;
-  --color-bg-tertiary: #101014;
-  --color-bg-elevated: #24283b;
-  --color-bg-overlay: #0d0d12;
-
-  --color-text-primary: #a9b1d6;
-  --color-text-secondary: #9aa5ce;
-  --color-text-tertiary: #565f89;
-  --color-text-disabled: #414868;
-
-  --color-border-default: #3b4261;
-  --color-border-subtle: #24283b;
-  --color-border-strong: #565f89;
-
-  --color-button-primary-bg: #7aa2f7;
-  --color-button-primary-text: #1a1b26;
-  --color-button-primary-hover: #89b4fa;
-  --color-button-secondary-bg: #3b4261;
-  --color-button-secondary-text: #a9b1d6;
-  --color-button-secondary-hover: #565f89;
-
-  --color-editor-bg: #1a1b26;
-  --color-editor-gutter: #16161e;
-  --color-editor-line-highlight: #24283b;
-  --color-editor-selection: #3b426180;
-  --color-editor-cursor: #c0caf5;
-
-  --color-sidebar-bg: #16161e;
-  --color-sidebar-item-hover: #24283b;
-  --color-sidebar-item-active: #3b4261;
-
-  --color-success: #9ece6a;
-  --color-warning: #e0af68;
-  --color-error: #f7768e;
-  --color-info: #7dcfff;
-
-  --color-syntax-keyword: #bb9af7;
-  --color-syntax-string: #9ece6a;
-  --color-syntax-number: #ff9e64;
-  --color-syntax-comment: #565f89;
-  --color-syntax-function: #7aa2f7;
-  --color-syntax-variable: #c0caf5;
-  --color-syntax-operator: #89ddff;
-
-  --color-scrollbar-track: #16161e;
-  --color-scrollbar-thumb: #3b4261;
-  --color-scrollbar-thumb-hover: #565f89;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * CATPPUCCIN MOCHA
- * ========================================================================= */
-[data-theme="catppuccin-mocha"] {
-  --color-bg-primary: #1e1e2e;
-  --color-bg-secondary: #181825;
-  --color-bg-tertiary: #11111b;
-  --color-bg-elevated: #313244;
-  --color-bg-overlay: #0f0f1a;
-
-  --color-text-primary: #cdd6f4;
-  --color-text-secondary: #bac2de;
-  --color-text-tertiary: #6c7086;
-  --color-text-disabled: #45475a;
-
-  --color-border-default: #313244;
-  --color-border-subtle: #1e1e2e;
-  --color-border-strong: #585b70;
-
-  --color-button-primary-bg: #f5c2e7;
-  --color-button-primary-text: #1e1e2e;
-  --color-button-primary-hover: #f2d4e7;
-  --color-button-secondary-bg: #313244;
-  --color-button-secondary-text: #cdd6f4;
-  --color-button-secondary-hover: #45475a;
-
-  --color-editor-bg: #1e1e2e;
-  --color-editor-gutter: #181825;
-  --color-editor-line-highlight: #313244;
-  --color-editor-selection: #f5c2e740;
-  --color-editor-cursor: #f5e0dc;
-
-  --color-sidebar-bg: #181825;
-  --color-sidebar-item-hover: #313244;
-  --color-sidebar-item-active: #45475a;
-
-  --color-success: #a6e3a1;
-  --color-warning: #f9e2af;
-  --color-error: #f38ba8;
-  --color-info: #89b4fa;
-
-  --color-syntax-keyword: #cba6f7;
-  --color-syntax-string: #a6e3a1;
-  --color-syntax-number: #fab387;
-  --color-syntax-comment: #6c7086;
-  --color-syntax-function: #89b4fa;
-  --color-syntax-variable: #f5c2e7;
-  --color-syntax-operator: #89dceb;
-
-  --color-scrollbar-track: #181825;
-  --color-scrollbar-thumb: #313244;
-  --color-scrollbar-thumb-hover: #45475a;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * GITHUB DARK DIMMED
- * ========================================================================= */
-[data-theme="github-dark-dimmed"] {
-  --color-bg-primary: #22272e;
-  --color-bg-secondary: #1c2128;
-  --color-bg-tertiary: #161b22;
-  --color-bg-elevated: #2d333b;
-  --color-bg-overlay: #13171d;
-
-  --color-text-primary: #adbac7;
-  --color-text-secondary: #909dab;
-  --color-text-tertiary: #636e7b;
-  --color-text-disabled: #444c56;
-
-  --color-border-default: #373e47;
-  --color-border-subtle: #2d333b;
-  --color-border-strong: #545d68;
-
-  --color-button-primary-bg: #347d39;
-  --color-button-primary-text: #ffffff;
-  --color-button-primary-hover: #46954a;
-  --color-button-secondary-bg: #373e47;
-  --color-button-secondary-text: #adbac7;
-  --color-button-secondary-hover: #545d68;
-
-  --color-editor-bg: #22272e;
-  --color-editor-gutter: #1c2128;
-  --color-editor-line-highlight: #2d333b;
-  --color-editor-selection: #347d3940;
-  --color-editor-cursor: #adbac7;
-
-  --color-sidebar-bg: #1c2128;
-  --color-sidebar-item-hover: #2d333b;
-  --color-sidebar-item-active: #373e47;
-
-  --color-success: #57ab5a;
-  --color-warning: #c69026;
-  --color-error: #e5534b;
-  --color-info: #539bf5;
-
-  --color-syntax-keyword: #f47067;
-  --color-syntax-string: #96d0ff;
-  --color-syntax-number: #6cb6ff;
-  --color-syntax-comment: #636e7b;
-  --color-syntax-function: #dcbdfb;
-  --color-syntax-variable: #f69d50;
-  --color-syntax-operator: #f47067;
-
-  --color-scrollbar-track: #1c2128;
-  --color-scrollbar-thumb: #373e47;
-  --color-scrollbar-thumb-hover: #545d68;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * NORD
- * ========================================================================= */
-[data-theme="nord"] {
-  --color-bg-primary: #2e3440;
-  --color-bg-secondary: #3b4252;
-  --color-bg-tertiary: #242933;
-  --color-bg-elevated: #434c5e;
-  --color-bg-overlay: #1f242d;
-
-  --color-text-primary: #d8dee9;
-  --color-text-secondary: #e5e9f0;
-  --color-text-tertiary: #4c566a;
-  --color-text-disabled: #3b4252;
-
-  --color-border-default: #434c5e;
-  --color-border-subtle: #3b4252;
-  --color-border-strong: #4c566a;
-
-  --color-button-primary-bg: #88c0d0;
-  --color-button-primary-text: #2e3440;
-  --color-button-primary-hover: #8fbcbb;
-  --color-button-secondary-bg: #434c5e;
-  --color-button-secondary-text: #d8dee9;
-  --color-button-secondary-hover: #4c566a;
-
-  --color-editor-bg: #2e3440;
-  --color-editor-gutter: #3b4252;
-  --color-editor-line-highlight: #434c5e;
-  --color-editor-selection: #434c5e80;
-  --color-editor-cursor: #d8dee9;
-
-  --color-sidebar-bg: #3b4252;
-  --color-sidebar-item-hover: #434c5e;
-  --color-sidebar-item-active: #4c566a;
-
-  --color-success: #a3be8c;
-  --color-warning: #ebcb8b;
-  --color-error: #bf616a;
-  --color-info: #81a1c1;
-
-  --color-syntax-keyword: #81a1c1;
-  --color-syntax-string: #a3be8c;
-  --color-syntax-number: #b48ead;
-  --color-syntax-comment: #616e88;
-  --color-syntax-function: #88c0d0;
-  --color-syntax-variable: #d8dee9;
-  --color-syntax-operator: #81a1c1;
-
-  --color-scrollbar-track: #3b4252;
-  --color-scrollbar-thumb: #434c5e;
-  --color-scrollbar-thumb-hover: #4c566a;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * GITHUB LIGHT
- * ========================================================================= */
-[data-theme="github-light"] {
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f6f8fa;
-  --color-bg-tertiary: #eaeef2;
-  --color-bg-elevated: #ffffff;
-  --color-bg-overlay: #fafbfc;
-
-  --color-text-primary: #1f2328;
-  --color-text-secondary: #57606a;
-  --color-text-tertiary: #6e7781;
-  --color-text-disabled: #afb8c1;
-
-  --color-border-default: #d0d7de;
-  --color-border-subtle: #eaeef2;
-  --color-border-strong: #afb8c1;
-
-  --color-button-primary-bg: #1f883d;
-  --color-button-primary-text: #ffffff;
-  --color-button-primary-hover: #1a7f37;
-  --color-button-secondary-bg: #f6f8fa;
-  --color-button-secondary-text: #1f2328;
-  --color-button-secondary-hover: #eaeef2;
-
-  --color-editor-bg: #ffffff;
-  --color-editor-gutter: #f6f8fa;
-  --color-editor-line-highlight: #f6f8fa;
-  --color-editor-selection: #0366d625;
-  --color-editor-cursor: #1f2328;
-
-  --color-sidebar-bg: #f6f8fa;
-  --color-sidebar-item-hover: #eaeef2;
-  --color-sidebar-item-active: #d0d7de;
-
-  --color-success: #1a7f37;
-  --color-warning: #9a6700;
-  --color-error: #cf222e;
-  --color-info: #0969da;
-
-  --color-syntax-keyword: #cf222e;
-  --color-syntax-string: #0a3069;
-  --color-syntax-number: #0550ae;
-  --color-syntax-comment: #6e7781;
-  --color-syntax-function: #8250df;
-  --color-syntax-variable: #953800;
-  --color-syntax-operator: #cf222e;
-
-  --color-scrollbar-track: #f6f8fa;
-  --color-scrollbar-thumb: #d0d7de;
-  --color-scrollbar-thumb-hover: #afb8c1;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * CATPPUCCIN LATTE
- * ========================================================================= */
-[data-theme="catppuccin-latte"] {
-  --color-bg-primary: #eff1f5;
-  --color-bg-secondary: #e6e9ef;
-  --color-bg-tertiary: #dce0e8;
-  --color-bg-elevated: #eff1f5;
-  --color-bg-overlay: #dce0e8;
-
-  --color-text-primary: #4c4f69;
-  --color-text-secondary: #5c5f77;
-  --color-text-tertiary: #6c6f85;
-  --color-text-disabled: #9ca0b0;
-
-  --color-border-default: #ccd0da;
-  --color-border-subtle: #e6e9ef;
-  --color-border-strong: #bcc0cc;
-
-  --color-button-primary-bg: #1e66f5;
-  --color-button-primary-text: #eff1f5;
-  --color-button-primary-hover: #2a6ef5;
-  --color-button-secondary-bg: #e6e9ef;
-  --color-button-secondary-text: #4c4f69;
-  --color-button-secondary-hover: #ccd0da;
-
-  --color-editor-bg: #eff1f5;
-  --color-editor-gutter: #e6e9ef;
-  --color-editor-line-highlight: #ccd0da;
-  --color-editor-selection: #1e66f540;
-  --color-editor-cursor: #4c4f69;
-
-  --color-sidebar-bg: #e6e9ef;
-  --color-sidebar-item-hover: #ccd0da;
-  --color-sidebar-item-active: #bcc0cc;
-
-  --color-success: #40a02b;
-  --color-warning: #df8e1d;
-  --color-error: #d20f39;
-  --color-info: #1e66f5;
-
-  --color-syntax-keyword: #8839ef;
-  --color-syntax-string: #40a02b;
-  --color-syntax-number: #fe640b;
-  --color-syntax-comment: #6c6f85;
-  --color-syntax-function: #1e66f5;
-  --color-syntax-variable: #ea76cb;
-  --color-syntax-operator: #04a5e5;
-
-  --color-scrollbar-track: #e6e9ef;
-  --color-scrollbar-thumb: #ccd0da;
-  --color-scrollbar-thumb-hover: #bcc0cc;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * ONE LIGHT
- * ========================================================================= */
-[data-theme="one-light"] {
-  --color-bg-primary: #fafafa;
-  --color-bg-secondary: #f0f0f1;
-  --color-bg-tertiary: #e5e5e6;
-  --color-bg-elevated: #ffffff;
-  --color-bg-overlay: #fafafa;
-
-  --color-text-primary: #383a42;
-  --color-text-secondary: #606166;
-  --color-text-tertiary: #a0a1a7;
-  --color-text-disabled: #c8c8ca;
-
-  --color-border-default: #d4d4d6;
-  --color-border-subtle: #e5e5e6;
-  --color-border-strong: #a0a1a7;
-
-  --color-button-primary-bg: #4078f2;
-  --color-button-primary-text: #ffffff;
-  --color-button-primary-hover: #528bff;
-  --color-button-secondary-bg: #f0f0f1;
-  --color-button-secondary-text: #383a42;
-  --color-button-secondary-hover: #e5e5e6;
-
-  --color-editor-bg: #fafafa;
-  --color-editor-gutter: #f0f0f1;
-  --color-editor-line-highlight: #f0f0f1;
-  --color-editor-selection: #4078f240;
-  --color-editor-cursor: #383a42;
-
-  --color-sidebar-bg: #f0f0f1;
-  --color-sidebar-item-hover: #e5e5e6;
-  --color-sidebar-item-active: #d4d4d6;
-
-  --color-success: #50a14f;
-  --color-warning: #c18401;
-  --color-error: #e45649;
-  --color-info: #4078f2;
-
-  --color-syntax-keyword: #a626a4;
-  --color-syntax-string: #50a14f;
-  --color-syntax-number: #986801;
-  --color-syntax-comment: #a0a1a7;
-  --color-syntax-function: #4078f2;
-  --color-syntax-variable: #e45649;
-  --color-syntax-operator: #0184bc;
-
-  --color-scrollbar-track: #f0f0f1;
-  --color-scrollbar-thumb: #d4d4d6;
-  --color-scrollbar-thumb-hover: #a0a1a7;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * DEFAULT FALLBACK (Midnight Pro)
- * Applied when no data-theme is set or before hydration
- * ========================================================================= */
-:root {
-  --color-bg-primary: #1e1e2e;
-  --color-bg-secondary: #181825;
-  --color-bg-tertiary: #11111b;
-  --color-bg-elevated: #252537;
-  --color-bg-overlay: #0f0f1a;
-
-  --color-text-primary: #cdd6f4;
-  --color-text-secondary: #a6adc8;
-  --color-text-tertiary: #6c7086;
-  --color-text-disabled: #45475a;
-
-  --color-border-default: #313244;
-  --color-border-subtle: #252537;
-  --color-border-strong: #45475a;
-
-  --color-button-primary-bg: #89b4fa;
-  --color-button-primary-text: #1e1e2e;
-  --color-button-primary-hover: #74c7ec;
-  --color-button-secondary-bg: #313244;
-  --color-button-secondary-text: #cdd6f4;
-  --color-button-secondary-hover: #45475a;
-
-  --color-editor-bg: #1e1e2e;
-  --color-editor-gutter: #181825;
-  --color-editor-line-highlight: #252537;
-  --color-editor-selection: #89b4fa40;
-  --color-editor-cursor: #f5e0dc;
-
-  --color-sidebar-bg: #181825;
-  --color-sidebar-item-hover: #252537;
-  --color-sidebar-item-active: #313244;
-
-  --color-success: #a6e3a1;
-  --color-warning: #f9e2af;
-  --color-error: #f38ba8;
-  --color-info: #89b4fa;
-
-  --color-syntax-keyword: #cba6f7;
-  --color-syntax-string: #a6e3a1;
-  --color-syntax-number: #fab387;
-  --color-syntax-comment: #6c7086;
-  --color-syntax-function: #89b4fa;
-  --color-syntax-variable: #f5c2e7;
-  --color-syntax-operator: #89dceb;
-
-  --color-scrollbar-track: #181825;
-  --color-scrollbar-thumb: #313244;
-  --color-scrollbar-thumb-hover: #45475a;
-
-  --bg-background-full: var(--color-bg-primary);
-  --bg-background-primary: var(--color-bg-secondary);
-  --bg-background-secondary: var(--color-bg-tertiary);
-  --bg-background-elevated: var(--color-bg-elevated);
-  --bg-background-overlay: var(--color-bg-overlay);
-  --text-text-primary: var(--color-text-primary);
-  --text-text-secondary: var(--color-text-secondary);
-  --text-text-tertiary: var(--color-text-tertiary);
-  --text-text-disabled: var(--color-text-disabled);
-  --border-border-button-default: var(--color-border-default);
-  --border-border-separator: var(--color-border-subtle);
-  --border-border-button-hover: var(--color-border-strong);
-  --button-primary-bg: var(--color-button-primary-bg);
-  --button-primary-text: var(--color-button-primary-text);
-  --button-primary-hover: var(--color-button-primary-hover);
-  --button-secondary-bg: var(--color-button-secondary-bg);
-  --button-secondary-text: var(--color-button-secondary-text);
-  --button-secondary-hover: var(--color-button-secondary-hover);
-  --color-state-success: var(--color-success);
-  --color-state-warning: var(--color-warning);
-  --color-state-error: var(--color-error);
-  --color-state-info: var(--color-info);
-  --scrollbar-track: var(--color-scrollbar-track);
-  --scrollbar-thumb: var(--color-scrollbar-thumb);
-  --scrollbar-thumb-hover: var(--color-scrollbar-thumb-hover);
-}
-
-/* =========================================================================
- * THEME TRANSITIONS
- * Smooth transitions when switching themes
+ * COMMON: Theme transitions & color scheme
  * ========================================================================= */
 html {
   transition:
@@ -901,17 +23,12 @@ html {
     color 0.2s ease;
 }
 
-/* Respect reduced motion preferences */
 @media (prefers-reduced-motion: reduce) {
   html {
     transition: none;
   }
 }
 
-/* =========================================================================
- * COLOR SCHEME
- * Tell the browser which color scheme to use for native UI
- * ========================================================================= */
 html[data-theme-mode="light"] {
   color-scheme: light;
 }
@@ -921,64 +38,882 @@ html[data-theme-mode="dark"] {
 }
 
 /* =========================================================================
- * SCROLLBAR THEMING
- * Cross-browser scrollbar customization
+ * SCROLLBAR THEMING (cross-browser)
+ * Uses semantic tokens that each theme overrides
  * ========================================================================= */
-
-/* Webkit (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-scrollbar-track);
+  background: var(--color-background-secondary-default);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-scrollbar-thumb);
+  background: var(--color-border-button-default);
   border-radius: 5px;
-  border: 2px solid var(--color-scrollbar-track);
+  border: 2px solid var(--color-background-secondary-default);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-scrollbar-thumb-hover);
+  background: var(--color-border-button-hover);
 }
 
 ::-webkit-scrollbar-corner {
-  background: var(--color-scrollbar-track);
+  background: var(--color-background-secondary-default);
 }
 
-/* Firefox */
 * {
-  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+  scrollbar-color: var(--color-border-button-default) var(--color-background-secondary-default);
   scrollbar-width: thin;
 }
 
-/* =========================================================================
- * SELECTION COLOR
- * Text selection styling
- * ========================================================================= */
 ::selection {
-  background-color: var(--color-button-primary-bg);
-  color: var(--color-button-primary-text);
+  background-color: var(--color-accent-500);
+  color: var(--color-foreground-full);
 }
 
 ::-moz-selection {
-  background-color: var(--color-button-primary-bg);
-  color: var(--color-button-primary-text);
+  background-color: var(--color-accent-500);
+  color: var(--color-foreground-full);
 }
 
-/* =========================================================================
- * FOCUS INDICATORS
- * Accessible focus styling
- * ========================================================================= */
 :focus-visible {
-  outline: 2px solid var(--color-button-primary-bg);
+  outline: 2px solid var(--color-border-focus-ring);
   outline-offset: 2px;
 }
 
-/* Remove focus outline for mouse users */
 :focus:not(:focus-visible) {
   outline: none;
+}
+
+/* =========================================================================
+ * MIDNIGHT PRO (Default Dark Theme)
+ * ========================================================================= */
+[data-theme="midnight-pro"] {
+  --color-background-full: #1e1e2e;
+  --color-background-primary-default: #1e1e2e;
+  --color-background-inner-default: #1e1e2e;
+  --color-background-primary-hover: #252537;
+  --color-background-primary-active: #313244;
+  --color-background-primary-disabled: #181825;
+  --color-background-secondary-default: #181825;
+  --color-background-secondary-hover: #252537;
+  --color-background-tertiary-default: #11111b;
+  --color-background-tertiary-hover: #252537;
+  --color-background-quaternary-default: #313244;
+  --color-background-quaternary-hover: #45475a;
+
+  --color-text-primary: #cdd6f4;
+  --color-text-secondary: #a6adc8;
+  --color-text-tertiary: #6c7086;
+  --color-text-disabled: #45475a;
+  --color-text-placeholder: #6c7086;
+
+  --color-foreground-full: #313244;
+  --color-foreground-icon-primary: #cdd6f4;
+  --color-foreground-icon-hover: #bac2de;
+  --color-foreground-icon-secondary: #a6adc8;
+  --color-foreground-icon-tertiary: #6c7086;
+  --color-foreground-icon-disabled: #45475a;
+  --color-foreground-disabled: #45475a;
+
+  --color-border-button-default: #313244;
+  --color-border-button-hover: #45475a;
+  --color-border-button-active: #585b70;
+  --color-separator-border: #313244;
+  --color-separator-border-strong: #45475a;
+  --color-border-focus-ring: #89b4fa;
+
+  --color-accent-50: #89b4fa1a;
+  --color-accent-100: #89b4fa33;
+  --color-accent-200: #89b4fa4d;
+  --color-accent-300: #89b4fa66;
+  --color-accent-400: #89b4fa;
+  --color-accent-500: #89b4fa;
+  --color-accent-600: #74c7ec;
+  --color-accent-700: #56b4e0;
+  --color-accent-800: #39a0d4;
+  --color-accent-900: #1f8dc8;
+  --color-accent-950: #1478ab;
+
+  --color-syntax-keyword: #cba6f7;
+  --color-syntax-string: #a6e3a1;
+  --color-syntax-number: #fab387;
+  --color-syntax-comment: #6c7086;
+  --color-syntax-tag: #89b4fa;
+
+  --color-state-success-text: #a6e3a1;
+  --color-state-success-base: #a6e3a133;
+
+  --color-background-selection: #89b4fa40;
+  --color-background-selection-strong: #89b4fa66;
+  --color-background-overlay: #0f0f1a;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 3px 0 rgb(0 0 0 / 0.25);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.2), 0 4px 6px -1px rgb(0 0 0 / 0.25);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.1), 0 1px 12px 0 rgb(0 0 0 / 0.2), 0 0 1px 0 rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.2);
+
+  --color-button-ghost-background: #89b4fa1a;
+  --color-button-ghost-hover: #89b4fa33;
+  --color-button-ghost-foreground: #89b4fa;
+
+  --color-dropdown-item-hover-background: #252537;
+
+  --color-notification-information-background: #89b4fa33;
+  --color-notification-information-foreground: #89b4fa;
+  --color-notification-success-background: #a6e3a133;
+  --color-notification-success-foreground: #a6e3a1;
+  --color-notification-error-background: #f38ba833;
+  --color-notification-error-foreground: #f38ba8;
+  --color-notification-center-background: #181825;
+}
+
+/* =========================================================================
+ * DRACULA
+ * ========================================================================= */
+[data-theme="dracula"] {
+  --color-background-full: #282a36;
+  --color-background-primary-default: #282a36;
+  --color-background-inner-default: #282a36;
+  --color-background-primary-hover: #343746;
+  --color-background-primary-active: #44475a;
+  --color-background-primary-disabled: #21222c;
+  --color-background-secondary-default: #21222c;
+  --color-background-secondary-hover: #343746;
+  --color-background-tertiary-default: #191a21;
+  --color-background-tertiary-hover: #343746;
+  --color-background-quaternary-default: #44475a;
+  --color-background-quaternary-hover: #6272a4;
+
+  --color-text-primary: #f8f8f2;
+  --color-text-secondary: #bfbfbf;
+  --color-text-tertiary: #6272a4;
+  --color-text-disabled: #44475a;
+  --color-text-placeholder: #6272a4;
+
+  --color-foreground-full: #44475a;
+  --color-foreground-icon-primary: #f8f8f2;
+  --color-foreground-icon-hover: #ffffff;
+  --color-foreground-icon-secondary: #bfbfbf;
+  --color-foreground-icon-tertiary: #6272a4;
+  --color-foreground-icon-disabled: #44475a;
+  --color-foreground-disabled: #44475a;
+
+  --color-border-button-default: #44475a;
+  --color-border-button-hover: #6272a4;
+  --color-border-button-active: #6272a4;
+  --color-separator-border: #44475a;
+  --color-separator-border-strong: #6272a4;
+  --color-border-focus-ring: #bd93f9;
+
+  --color-accent-50: #bd93f91a;
+  --color-accent-100: #bd93f933;
+  --color-accent-200: #bd93f94d;
+  --color-accent-300: #bd93f966;
+  --color-accent-400: #bd93f9;
+  --color-accent-500: #bd93f9;
+  --color-accent-600: #a37ef0;
+  --color-accent-700: #8a68e0;
+  --color-accent-800: #7154d0;
+  --color-accent-900: #5840c0;
+  --color-accent-950: #3f2cb0;
+
+  --color-syntax-keyword: #ff79c6;
+  --color-syntax-string: #f1fa8c;
+  --color-syntax-number: #bd93f9;
+  --color-syntax-comment: #6272a4;
+  --color-syntax-tag: #ff79c6;
+
+  --color-state-success-text: #50fa7b;
+  --color-state-success-base: #50fa7b33;
+
+  --color-background-selection: #44475a80;
+  --color-background-selection-strong: #bd93f940;
+  --color-background-overlay: #15161c;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 3px 0 rgb(0 0 0 / 0.25);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.2), 0 4px 6px -1px rgb(0 0 0 / 0.25);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.1), 0 1px 12px 0 rgb(0 0 0 / 0.2), 0 0 1px 0 rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.2);
+
+  --color-button-ghost-background: #bd93f91a;
+  --color-button-ghost-hover: #bd93f933;
+  --color-button-ghost-foreground: #bd93f9;
+
+  --color-dropdown-item-hover-background: #343746;
+
+  --color-notification-information-background: #8be9fd33;
+  --color-notification-information-foreground: #8be9fd;
+  --color-notification-success-background: #50fa7b33;
+  --color-notification-success-foreground: #50fa7b;
+  --color-notification-error-background: #ff555533;
+  --color-notification-error-foreground: #ff5555;
+  --color-notification-center-background: #21222c;
+}
+
+/* =========================================================================
+ * ONE DARK PRO
+ * ========================================================================= */
+[data-theme="one-dark-pro"] {
+  --color-background-full: #282c34;
+  --color-background-primary-default: #282c34;
+  --color-background-inner-default: #282c34;
+  --color-background-primary-hover: #2c313a;
+  --color-background-primary-active: #3e4451;
+  --color-background-primary-disabled: #21252b;
+  --color-background-secondary-default: #21252b;
+  --color-background-secondary-hover: #2c313a;
+  --color-background-tertiary-default: #1b1f23;
+  --color-background-tertiary-hover: #2c313a;
+  --color-background-quaternary-default: #3e4451;
+  --color-background-quaternary-hover: #5c6370;
+
+  --color-text-primary: #abb2bf;
+  --color-text-secondary: #848b98;
+  --color-text-tertiary: #5c6370;
+  --color-text-disabled: #4b5263;
+  --color-text-placeholder: #5c6370;
+
+  --color-foreground-full: #3e4451;
+  --color-foreground-icon-primary: #abb2bf;
+  --color-foreground-icon-hover: #c8ccd4;
+  --color-foreground-icon-secondary: #848b98;
+  --color-foreground-icon-tertiary: #5c6370;
+  --color-foreground-icon-disabled: #4b5263;
+  --color-foreground-disabled: #4b5263;
+
+  --color-border-button-default: #3e4451;
+  --color-border-button-hover: #5c6370;
+  --color-border-button-active: #5c6370;
+  --color-separator-border: #3e4451;
+  --color-separator-border-strong: #5c6370;
+  --color-border-focus-ring: #61afef;
+
+  --color-accent-50: #61afef1a;
+  --color-accent-100: #61afef33;
+  --color-accent-200: #61afef4d;
+  --color-accent-300: #61afef66;
+  --color-accent-400: #61afef;
+  --color-accent-500: #61afef;
+  --color-accent-600: #528bff;
+  --color-accent-700: #4278e0;
+  --color-accent-800: #3465c1;
+  --color-accent-900: #2652a2;
+  --color-accent-950: #183f83;
+
+  --color-syntax-keyword: #c678dd;
+  --color-syntax-string: #98c379;
+  --color-syntax-number: #d19a66;
+  --color-syntax-comment: #5c6370;
+  --color-syntax-tag: #e06c75;
+
+  --color-state-success-text: #98c379;
+  --color-state-success-base: #98c37933;
+
+  --color-background-selection: #3e445180;
+  --color-background-selection-strong: #61afef40;
+  --color-background-overlay: #181a1f;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 3px 0 rgb(0 0 0 / 0.25);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.2), 0 4px 6px -1px rgb(0 0 0 / 0.25);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.1), 0 1px 12px 0 rgb(0 0 0 / 0.2), 0 0 1px 0 rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.2);
+
+  --color-button-ghost-background: #61afef1a;
+  --color-button-ghost-hover: #61afef33;
+  --color-button-ghost-foreground: #61afef;
+
+  --color-dropdown-item-hover-background: #2c313a;
+
+  --color-notification-information-background: #61afef33;
+  --color-notification-information-foreground: #61afef;
+  --color-notification-success-background: #98c37933;
+  --color-notification-success-foreground: #98c379;
+  --color-notification-error-background: #e06c7533;
+  --color-notification-error-foreground: #e06c75;
+  --color-notification-center-background: #21252b;
+}
+
+/* =========================================================================
+ * TOKYO NIGHT
+ * ========================================================================= */
+[data-theme="tokyo-night"] {
+  --color-background-full: #1a1b26;
+  --color-background-primary-default: #1a1b26;
+  --color-background-inner-default: #1a1b26;
+  --color-background-primary-hover: #24283b;
+  --color-background-primary-active: #3b4261;
+  --color-background-primary-disabled: #16161e;
+  --color-background-secondary-default: #16161e;
+  --color-background-secondary-hover: #24283b;
+  --color-background-tertiary-default: #101014;
+  --color-background-tertiary-hover: #24283b;
+  --color-background-quaternary-default: #3b4261;
+  --color-background-quaternary-hover: #565f89;
+
+  --color-text-primary: #a9b1d6;
+  --color-text-secondary: #9aa5ce;
+  --color-text-tertiary: #565f89;
+  --color-text-disabled: #414868;
+  --color-text-placeholder: #565f89;
+
+  --color-foreground-full: #3b4261;
+  --color-foreground-icon-primary: #a9b1d6;
+  --color-foreground-icon-hover: #c0caf5;
+  --color-foreground-icon-secondary: #9aa5ce;
+  --color-foreground-icon-tertiary: #565f89;
+  --color-foreground-icon-disabled: #414868;
+  --color-foreground-disabled: #414868;
+
+  --color-border-button-default: #3b4261;
+  --color-border-button-hover: #565f89;
+  --color-border-button-active: #565f89;
+  --color-separator-border: #3b4261;
+  --color-separator-border-strong: #565f89;
+  --color-border-focus-ring: #7aa2f7;
+
+  --color-accent-50: #7aa2f71a;
+  --color-accent-100: #7aa2f733;
+  --color-accent-200: #7aa2f74d;
+  --color-accent-300: #7aa2f766;
+  --color-accent-400: #7aa2f7;
+  --color-accent-500: #7aa2f7;
+  --color-accent-600: #6690e0;
+  --color-accent-700: #527ec9;
+  --color-accent-800: #3e6cb2;
+  --color-accent-900: #2a5a9b;
+  --color-accent-950: #164884;
+
+  --color-syntax-keyword: #bb9af7;
+  --color-syntax-string: #9ece6a;
+  --color-syntax-number: #ff9e64;
+  --color-syntax-comment: #565f89;
+  --color-syntax-tag: #f7768e;
+
+  --color-state-success-text: #9ece6a;
+  --color-state-success-base: #9ece6a33;
+
+  --color-background-selection: #3b426180;
+  --color-background-selection-strong: #7aa2f740;
+  --color-background-overlay: #0d0d12;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 3px 0 rgb(0 0 0 / 0.25);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.2), 0 4px 6px -1px rgb(0 0 0 / 0.25);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.1), 0 1px 12px 0 rgb(0 0 0 / 0.2), 0 0 1px 0 rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.2);
+
+  --color-button-ghost-background: #7aa2f71a;
+  --color-button-ghost-hover: #7aa2f733;
+  --color-button-ghost-foreground: #7aa2f7;
+
+  --color-dropdown-item-hover-background: #24283b;
+
+  --color-notification-information-background: #7dcfff33;
+  --color-notification-information-foreground: #7dcfff;
+  --color-notification-success-background: #9ece6a33;
+  --color-notification-success-foreground: #9ece6a;
+  --color-notification-error-background: #f7768e33;
+  --color-notification-error-foreground: #f7768e;
+  --color-notification-center-background: #16161e;
+}
+
+/* =========================================================================
+ * CATPPUCCIN MOCHA
+ * ========================================================================= */
+[data-theme="catppuccin-mocha"] {
+  --color-background-full: #1e1e2e;
+  --color-background-primary-default: #1e1e2e;
+  --color-background-inner-default: #1e1e2e;
+  --color-background-primary-hover: #313244;
+  --color-background-primary-active: #45475a;
+  --color-background-primary-disabled: #181825;
+  --color-background-secondary-default: #181825;
+  --color-background-secondary-hover: #313244;
+  --color-background-tertiary-default: #11111b;
+  --color-background-tertiary-hover: #313244;
+  --color-background-quaternary-default: #45475a;
+  --color-background-quaternary-hover: #585b70;
+
+  --color-text-primary: #cdd6f4;
+  --color-text-secondary: #bac2de;
+  --color-text-tertiary: #6c7086;
+  --color-text-disabled: #45475a;
+  --color-text-placeholder: #6c7086;
+
+  --color-foreground-full: #313244;
+  --color-foreground-icon-primary: #cdd6f4;
+  --color-foreground-icon-hover: #f5e0dc;
+  --color-foreground-icon-secondary: #bac2de;
+  --color-foreground-icon-tertiary: #6c7086;
+  --color-foreground-icon-disabled: #45475a;
+  --color-foreground-disabled: #45475a;
+
+  --color-border-button-default: #313244;
+  --color-border-button-hover: #45475a;
+  --color-border-button-active: #585b70;
+  --color-separator-border: #313244;
+  --color-separator-border-strong: #45475a;
+  --color-border-focus-ring: #f5c2e7;
+
+  --color-accent-50: #f5c2e71a;
+  --color-accent-100: #f5c2e733;
+  --color-accent-200: #f5c2e74d;
+  --color-accent-300: #f5c2e766;
+  --color-accent-400: #f5c2e7;
+  --color-accent-500: #f5c2e7;
+  --color-accent-600: #e0a8d0;
+  --color-accent-700: #cb8eb9;
+  --color-accent-800: #b674a2;
+  --color-accent-900: #a15a8b;
+  --color-accent-950: #8c4074;
+
+  --color-syntax-keyword: #cba6f7;
+  --color-syntax-string: #a6e3a1;
+  --color-syntax-number: #fab387;
+  --color-syntax-comment: #6c7086;
+  --color-syntax-tag: #89b4fa;
+
+  --color-state-success-text: #a6e3a1;
+  --color-state-success-base: #a6e3a133;
+
+  --color-background-selection: #f5c2e740;
+  --color-background-selection-strong: #f5c2e766;
+  --color-background-overlay: #0f0f1a;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 3px 0 rgb(0 0 0 / 0.25);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.2), 0 4px 6px -1px rgb(0 0 0 / 0.25);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.1), 0 1px 12px 0 rgb(0 0 0 / 0.2), 0 0 1px 0 rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.2);
+
+  --color-button-ghost-background: #f5c2e71a;
+  --color-button-ghost-hover: #f5c2e733;
+  --color-button-ghost-foreground: #f5c2e7;
+
+  --color-dropdown-item-hover-background: #313244;
+
+  --color-notification-information-background: #89b4fa33;
+  --color-notification-information-foreground: #89b4fa;
+  --color-notification-success-background: #a6e3a133;
+  --color-notification-success-foreground: #a6e3a1;
+  --color-notification-error-background: #f38ba833;
+  --color-notification-error-foreground: #f38ba8;
+  --color-notification-center-background: #181825;
+}
+
+/* =========================================================================
+ * GITHUB DARK DIMMED
+ * ========================================================================= */
+[data-theme="github-dark-dimmed"] {
+  --color-background-full: #22272e;
+  --color-background-primary-default: #22272e;
+  --color-background-inner-default: #22272e;
+  --color-background-primary-hover: #2d333b;
+  --color-background-primary-active: #373e47;
+  --color-background-primary-disabled: #1c2128;
+  --color-background-secondary-default: #1c2128;
+  --color-background-secondary-hover: #2d333b;
+  --color-background-tertiary-default: #161b22;
+  --color-background-tertiary-hover: #2d333b;
+  --color-background-quaternary-default: #373e47;
+  --color-background-quaternary-hover: #545d68;
+
+  --color-text-primary: #adbac7;
+  --color-text-secondary: #909dab;
+  --color-text-tertiary: #636e7b;
+  --color-text-disabled: #444c56;
+  --color-text-placeholder: #636e7b;
+
+  --color-foreground-full: #373e47;
+  --color-foreground-icon-primary: #adbac7;
+  --color-foreground-icon-hover: #cdd9e5;
+  --color-foreground-icon-secondary: #909dab;
+  --color-foreground-icon-tertiary: #636e7b;
+  --color-foreground-icon-disabled: #444c56;
+  --color-foreground-disabled: #444c56;
+
+  --color-border-button-default: #373e47;
+  --color-border-button-hover: #545d68;
+  --color-border-button-active: #545d68;
+  --color-separator-border: #373e47;
+  --color-separator-border-strong: #545d68;
+  --color-border-focus-ring: #347d39;
+
+  --color-accent-50: #347d391a;
+  --color-accent-100: #347d3933;
+  --color-accent-200: #347d394d;
+  --color-accent-300: #347d3966;
+  --color-accent-400: #46954a;
+  --color-accent-500: #347d39;
+  --color-accent-600: #2e6e32;
+  --color-accent-700: #285f2b;
+  --color-accent-800: #225024;
+  --color-accent-900: #1c411d;
+  --color-accent-950: #163216;
+
+  --color-syntax-keyword: #f47067;
+  --color-syntax-string: #96d0ff;
+  --color-syntax-number: #6cb6ff;
+  --color-syntax-comment: #636e7b;
+  --color-syntax-tag: #f47067;
+
+  --color-state-success-text: #57ab5a;
+  --color-state-success-base: #57ab5a33;
+
+  --color-background-selection: #347d3940;
+  --color-background-selection-strong: #347d3966;
+  --color-background-overlay: #13171d;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 3px 0 rgb(0 0 0 / 0.25);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.2), 0 4px 6px -1px rgb(0 0 0 / 0.25);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.1), 0 1px 12px 0 rgb(0 0 0 / 0.2), 0 0 1px 0 rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.2);
+
+  --color-button-ghost-background: #347d391a;
+  --color-button-ghost-hover: #347d3933;
+  --color-button-ghost-foreground: #46954a;
+
+  --color-dropdown-item-hover-background: #2d333b;
+
+  --color-notification-information-background: #539bf533;
+  --color-notification-information-foreground: #539bf5;
+  --color-notification-success-background: #57ab5a33;
+  --color-notification-success-foreground: #57ab5a;
+  --color-notification-error-background: #e5534b33;
+  --color-notification-error-foreground: #e5534b;
+  --color-notification-center-background: #1c2128;
+}
+
+/* =========================================================================
+ * NORD
+ * ========================================================================= */
+[data-theme="nord"] {
+  --color-background-full: #2e3440;
+  --color-background-primary-default: #2e3440;
+  --color-background-inner-default: #2e3440;
+  --color-background-primary-hover: #3b4252;
+  --color-background-primary-active: #434c5e;
+  --color-background-primary-disabled: #242933;
+  --color-background-secondary-default: #3b4252;
+  --color-background-secondary-hover: #434c5e;
+  --color-background-tertiary-default: #242933;
+  --color-background-tertiary-hover: #434c5e;
+  --color-background-quaternary-default: #434c5e;
+  --color-background-quaternary-hover: #4c566a;
+
+  --color-text-primary: #d8dee9;
+  --color-text-secondary: #e5e9f0;
+  --color-text-tertiary: #4c566a;
+  --color-text-disabled: #3b4252;
+  --color-text-placeholder: #4c566a;
+
+  --color-foreground-full: #434c5e;
+  --color-foreground-icon-primary: #d8dee9;
+  --color-foreground-icon-hover: #eceff4;
+  --color-foreground-icon-secondary: #e5e9f0;
+  --color-foreground-icon-tertiary: #4c566a;
+  --color-foreground-icon-disabled: #3b4252;
+  --color-foreground-disabled: #3b4252;
+
+  --color-border-button-default: #434c5e;
+  --color-border-button-hover: #4c566a;
+  --color-border-button-active: #4c566a;
+  --color-separator-border: #434c5e;
+  --color-separator-border-strong: #4c566a;
+  --color-border-focus-ring: #88c0d0;
+
+  --color-accent-50: #88c0d01a;
+  --color-accent-100: #88c0d033;
+  --color-accent-200: #88c0d04d;
+  --color-accent-300: #88c0d066;
+  --color-accent-400: #88c0d0;
+  --color-accent-500: #88c0d0;
+  --color-accent-600: #7ab0be;
+  --color-accent-700: #6ca0ac;
+  --color-accent-800: #5e909a;
+  --color-accent-900: #508088;
+  --color-accent-950: #427076;
+
+  --color-syntax-keyword: #81a1c1;
+  --color-syntax-string: #a3be8c;
+  --color-syntax-number: #b48ead;
+  --color-syntax-comment: #616e88;
+  --color-syntax-tag: #81a1c1;
+
+  --color-state-success-text: #a3be8c;
+  --color-state-success-base: #a3be8c33;
+
+  --color-background-selection: #434c5e80;
+  --color-background-selection-strong: #88c0d040;
+  --color-background-overlay: #1f242d;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 3px 0 rgb(0 0 0 / 0.25);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.2), 0 4px 6px -1px rgb(0 0 0 / 0.25);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.1), 0 1px 12px 0 rgb(0 0 0 / 0.2), 0 0 1px 0 rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.2);
+
+  --color-button-ghost-background: #88c0d01a;
+  --color-button-ghost-hover: #88c0d033;
+  --color-button-ghost-foreground: #88c0d0;
+
+  --color-dropdown-item-hover-background: #3b4252;
+
+  --color-notification-information-background: #81a1c133;
+  --color-notification-information-foreground: #81a1c1;
+  --color-notification-success-background: #a3be8c33;
+  --color-notification-success-foreground: #a3be8c;
+  --color-notification-error-background: #bf616a33;
+  --color-notification-error-foreground: #bf616a;
+  --color-notification-center-background: #3b4252;
+}
+
+/* =========================================================================
+ * GITHUB LIGHT
+ * ========================================================================= */
+[data-theme="github-light"] {
+  --color-background-full: #ffffff;
+  --color-background-primary-default: #ffffff;
+  --color-background-inner-default: #ffffff;
+  --color-background-primary-hover: #f6f8fa;
+  --color-background-primary-active: #eaeef2;
+  --color-background-primary-disabled: #f6f8fa;
+  --color-background-secondary-default: #f6f8fa;
+  --color-background-secondary-hover: #eaeef2;
+  --color-background-tertiary-default: #eaeef2;
+  --color-background-tertiary-hover: #d0d7de;
+  --color-background-quaternary-default: #d0d7de;
+  --color-background-quaternary-hover: #afb8c1;
+
+  --color-text-primary: #1f2328;
+  --color-text-secondary: #57606a;
+  --color-text-tertiary: #6e7781;
+  --color-text-disabled: #afb8c1;
+  --color-text-placeholder: #6e7781;
+
+  --color-foreground-full: #ffffff;
+  --color-foreground-icon-primary: #1f2328;
+  --color-foreground-icon-hover: #000000;
+  --color-foreground-icon-secondary: #57606a;
+  --color-foreground-icon-tertiary: #6e7781;
+  --color-foreground-icon-disabled: #afb8c1;
+  --color-foreground-disabled: #afb8c1;
+
+  --color-border-button-default: #d0d7de;
+  --color-border-button-hover: #afb8c1;
+  --color-border-button-active: #afb8c1;
+  --color-separator-border: #d0d7de;
+  --color-separator-border-strong: #afb8c1;
+  --color-border-focus-ring: #1f883d;
+
+  --color-accent-50: #1f883d1a;
+  --color-accent-100: #1f883d33;
+  --color-accent-200: #1f883d4d;
+  --color-accent-300: #1f883d66;
+  --color-accent-400: #1f883d;
+  --color-accent-500: #1f883d;
+  --color-accent-600: #1a7f37;
+  --color-accent-700: #156630;
+  --color-accent-800: #104d24;
+  --color-accent-900: #0b3418;
+  --color-accent-950: #061b0c;
+
+  --color-syntax-keyword: #cf222e;
+  --color-syntax-string: #0a3069;
+  --color-syntax-number: #0550ae;
+  --color-syntax-comment: #6e7781;
+  --color-syntax-tag: #8250df;
+
+  --color-state-success-text: #1a7f37;
+  --color-state-success-base: #1a7f3733;
+
+  --color-background-selection: #1f883d25;
+  --color-background-selection-strong: #1f883d40;
+  --color-background-overlay: #fafbfc;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.06), 0 1px 3px 0 rgb(0 0 0 / 0.10);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.06), 0 4px 6px -1px rgb(0 0 0 / 0.10);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.02), 0 1px 12px 0 rgb(0 0 0 / 0.06), 0 0 1px 0 rgb(0 0 0 / 0.32);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.05);
+
+  --color-button-ghost-background: #1f883d1a;
+  --color-button-ghost-hover: #1f883d33;
+  --color-button-ghost-foreground: #1a7f37;
+
+  --color-dropdown-item-hover-background: #f6f8fa;
+
+  --color-notification-information-background: #0969da1a;
+  --color-notification-information-foreground: #0969da;
+  --color-notification-success-background: #1a7f371a;
+  --color-notification-success-foreground: #1a7f37;
+  --color-notification-error-background: #cf222e1a;
+  --color-notification-error-foreground: #cf222e;
+  --color-notification-center-background: #ffffff;
+}
+
+/* =========================================================================
+ * CATPPUCCIN LATTE
+ * ========================================================================= */
+[data-theme="catppuccin-latte"] {
+  --color-background-full: #eff1f5;
+  --color-background-primary-default: #eff1f5;
+  --color-background-inner-default: #eff1f5;
+  --color-background-primary-hover: #e6e9ef;
+  --color-background-primary-active: #ccd0da;
+  --color-background-primary-disabled: #e6e9ef;
+  --color-background-secondary-default: #e6e9ef;
+  --color-background-secondary-hover: #ccd0da;
+  --color-background-tertiary-default: #dce0e8;
+  --color-background-tertiary-hover: #ccd0da;
+  --color-background-quaternary-default: #ccd0da;
+  --color-background-quaternary-hover: #bcc0cc;
+
+  --color-text-primary: #4c4f69;
+  --color-text-secondary: #5c5f77;
+  --color-text-tertiary: #6c6f85;
+  --color-text-disabled: #9ca0b0;
+  --color-text-placeholder: #6c6f85;
+
+  --color-foreground-full: #ffffff;
+  --color-foreground-icon-primary: #4c4f69;
+  --color-foreground-icon-hover: #3c3f55;
+  --color-foreground-icon-secondary: #5c5f77;
+  --color-foreground-icon-tertiary: #6c6f85;
+  --color-foreground-icon-disabled: #9ca0b0;
+  --color-foreground-disabled: #9ca0b0;
+
+  --color-border-button-default: #ccd0da;
+  --color-border-button-hover: #bcc0cc;
+  --color-border-button-active: #bcc0cc;
+  --color-separator-border: #ccd0da;
+  --color-separator-border-strong: #bcc0cc;
+  --color-border-focus-ring: #1e66f5;
+
+  --color-accent-50: #1e66f51a;
+  --color-accent-100: #1e66f533;
+  --color-accent-200: #1e66f54d;
+  --color-accent-300: #1e66f566;
+  --color-accent-400: #1e66f5;
+  --color-accent-500: #1e66f5;
+  --color-accent-600: #1a5cd9;
+  --color-accent-700: #1652bd;
+  --color-accent-800: #1248a1;
+  --color-accent-900: #0e3e85;
+  --color-accent-950: #0a3469;
+
+  --color-syntax-keyword: #8839ef;
+  --color-syntax-string: #40a02b;
+  --color-syntax-number: #fe640b;
+  --color-syntax-comment: #6c6f85;
+  --color-syntax-tag: #1e66f5;
+
+  --color-state-success-text: #40a02b;
+  --color-state-success-base: #40a02b33;
+
+  --color-background-selection: #1e66f540;
+  --color-background-selection-strong: #1e66f566;
+  --color-background-overlay: #dce0e8;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.06), 0 1px 3px 0 rgb(0 0 0 / 0.10);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.06), 0 4px 6px -1px rgb(0 0 0 / 0.10);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.02), 0 1px 12px 0 rgb(0 0 0 / 0.06), 0 0 1px 0 rgb(0 0 0 / 0.32);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.05);
+
+  --color-button-ghost-background: #1e66f51a;
+  --color-button-ghost-hover: #1e66f533;
+  --color-button-ghost-foreground: #1e66f5;
+
+  --color-dropdown-item-hover-background: #e6e9ef;
+
+  --color-notification-information-background: #1e66f51a;
+  --color-notification-information-foreground: #1e66f5;
+  --color-notification-success-background: #40a02b1a;
+  --color-notification-success-foreground: #40a02b;
+  --color-notification-error-background: #d20f391a;
+  --color-notification-error-foreground: #d20f39;
+  --color-notification-center-background: #eff1f5;
+}
+
+/* =========================================================================
+ * ONE LIGHT
+ * ========================================================================= */
+[data-theme="one-light"] {
+  --color-background-full: #fafafa;
+  --color-background-primary-default: #fafafa;
+  --color-background-inner-default: #fafafa;
+  --color-background-primary-hover: #f0f0f1;
+  --color-background-primary-active: #e5e5e6;
+  --color-background-primary-disabled: #f0f0f1;
+  --color-background-secondary-default: #f0f0f1;
+  --color-background-secondary-hover: #e5e5e6;
+  --color-background-tertiary-default: #e5e5e6;
+  --color-background-tertiary-hover: #d4d4d6;
+  --color-background-quaternary-default: #d4d4d6;
+  --color-background-quaternary-hover: #a0a1a7;
+
+  --color-text-primary: #383a42;
+  --color-text-secondary: #606166;
+  --color-text-tertiary: #a0a1a7;
+  --color-text-disabled: #c8c8ca;
+  --color-text-placeholder: #a0a1a7;
+
+  --color-foreground-full: #ffffff;
+  --color-foreground-icon-primary: #383a42;
+  --color-foreground-icon-hover: #282c34;
+  --color-foreground-icon-secondary: #606166;
+  --color-foreground-icon-tertiary: #a0a1a7;
+  --color-foreground-icon-disabled: #c8c8ca;
+  --color-foreground-disabled: #c8c8ca;
+
+  --color-border-button-default: #d4d4d6;
+  --color-border-button-hover: #a0a1a7;
+  --color-border-button-active: #a0a1a7;
+  --color-separator-border: #d4d4d6;
+  --color-separator-border-strong: #a0a1a7;
+  --color-border-focus-ring: #4078f2;
+
+  --color-accent-50: #4078f21a;
+  --color-accent-100: #4078f233;
+  --color-accent-200: #4078f24d;
+  --color-accent-300: #4078f266;
+  --color-accent-400: #4078f2;
+  --color-accent-500: #4078f2;
+  --color-accent-600: #3568e0;
+  --color-accent-700: #2a58ce;
+  --color-accent-800: #1f48bc;
+  --color-accent-900: #1438aa;
+  --color-accent-950: #092898;
+
+  --color-syntax-keyword: #a626a4;
+  --color-syntax-string: #50a14f;
+  --color-syntax-number: #986801;
+  --color-syntax-comment: #a0a1a7;
+  --color-syntax-tag: #4078f2;
+
+  --color-state-success-text: #50a14f;
+  --color-state-success-base: #50a14f33;
+
+  --color-background-selection: #4078f240;
+  --color-background-selection-strong: #4078f266;
+  --color-background-overlay: #fafafa;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.06), 0 1px 3px 0 rgb(0 0 0 / 0.10);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.06), 0 4px 6px -1px rgb(0 0 0 / 0.10);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.02), 0 1px 12px 0 rgb(0 0 0 / 0.06), 0 0 1px 0 rgb(0 0 0 / 0.32);
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.05);
+
+  --color-button-ghost-background: #4078f21a;
+  --color-button-ghost-hover: #4078f233;
+  --color-button-ghost-foreground: #4078f2;
+
+  --color-dropdown-item-hover-background: #f0f0f1;
+
+  --color-notification-information-background: #4078f21a;
+  --color-notification-information-foreground: #4078f2;
+  --color-notification-success-background: #50a14f1a;
+  --color-notification-success-foreground: #50a14f;
+  --color-notification-error-background: #e456491a;
+  --color-notification-error-foreground: #e45649;
+  --color-notification-center-background: #fafafa;
 }

@@ -2,26 +2,10 @@
 
 import { useState, useRef, useCallback, useMemo } from "react";
 import { cx } from "@/utils/cx";
-import { themes } from "@/lib/themes/theme-definitions";
+import { themes, getThemeSwatches } from "@/lib/themes/theme-definitions";
 import { useTheme } from "@/contexts/theme-context";
 import { ThemeCard } from "@/components/settings/theme-card";
 import { RiSearchLine, RiCloseLine } from "@remixicon/react";
-
-/**
- * Extract a few representative colors from a theme for the card swatches.
- * @param {Object} colors - Theme colors object
- * @returns {string[]} Array of hex color strings
- */
-function getThemeSwatches(colors) {
-  return [
-    colors['bg-primary'],
-    colors['bg-secondary'],
-    colors['button-primary-bg'],
-    colors['text-primary'],
-    colors['text-secondary'],
-    colors['border-default'],
-  ].filter(Boolean);
-}
 
 /**
  * Theme selector grid with search, live preview, apply and reset actions.
@@ -188,7 +172,7 @@ export function ThemeSelector() {
               id={theme.id}
               name={theme.name}
               type={theme.type}
-              colors={getThemeSwatches(theme.colors)}
+              colors={Object.values(getThemeSwatches(theme))}
               active={currentTheme === theme.id}
               previewing={previewTheme === theme.id}
               onClick={() => setPreviewTheme(theme.id)}
