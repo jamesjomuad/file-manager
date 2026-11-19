@@ -50,7 +50,7 @@ export function UploadQueue() {
   const hasCompletedOrErrors = stats.complete > 0 || stats.error > 0;
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 max-h-[500px] flex flex-col rounded-2xl bg-background-primary-default shadow-lg border border-border-button-default z-50">
+    <div className="fixed bottom-24 right-4 w-96 max-h-[500px] flex flex-col rounded-2xl bg-background-primary-default shadow-lg border border-border-button-default z-50">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border-button-default">
         <div className="flex items-center gap-2">
