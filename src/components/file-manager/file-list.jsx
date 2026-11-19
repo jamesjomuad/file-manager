@@ -1,0 +1,239 @@
+"use client";
+
+import { useCallback } from "react";
+import { cx } from "@/utils/cx";
+import { FileIcon } from "@/components/file-manager/file-icon";
+import { RiSortAsc, RiSortDesc } from "@remixicon/react";
+
+/**
+ * Format file size to human-readable string
+ * @param {number} bytes - Size in bytes
+ * @returns {string}
+ */
+function formatSize(bytes) {
+  if (bytes === 0) return "—";
+  if (typeof bytes !== "number") return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
+/**
+ * Format date to relative or short date string
+ * @param {string|Date} date - Date to format
+ * @returns {string}
+ */
+function formatDate(date) {
+  if (!date) return "—";
+  const d = new Date(date);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  if (diffDay < 7) return `${diffDay}d ago`;
+
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  });
+}
+
+/**
+ * Get file type label from extension
+ * @param {string} extension
+ * @returns {string}
+ */
+function getTypeLabel(extension) {
+  if (!extension) return "File";
+  return extension.toUpperCase();
+}
+
+/**
+ * Sortable column header component
+ * @param {Object} props
+ */
+function SortableHeader({ field, label, sortBy, sortOrder, onSortChange, align = "start" }) {
+  const isActive = sortBy === field;
+  const SortIcon = sortOrder === "asc" ? RiSortAsc : RiSortDesc;
+
+  return (
+    <th
+      className={cx(
+        "text-caption-1-semibold text-text-secondary px-4 py-2 font-medium cursor-pointer select-none",
+        "hover:bg-background-secondary-hover transition-colors",
+        align === "end" ? "text-end" : "text-start"
+      )}
+      onClick={() => onSortChange(field)}
+    >
+      <div className={cx("flex items-center gap-1", align === "end" ? "justify-end" : "justify-start")}>
+        <span>{label}</span>
+        {isActive && (
+          <SortIcon className="w-3.5 h-3.5 text-foreground-icon-secondary" />
+        )}
+      </div>
+    </th>
+  );
+}
+
+/**
+ * File list/table view component with multi-select and sorting
+ * @param {Object} props
+ * @param {Array} props.files - Array of file objects
+ * @param {(file: Object) => void} props.onOpen - Callback when a file is opened
+ * @param {(file: Object, event: React.MouseEvent) => void} props.onSelect - Callback when a file is selected
+ * @param {Set<string>} props.selectedFiles - Set of selected file paths
+ * @param {(file: Object, position: { x: number, y: number }) => void} props.onContextMenu - Context menu callback
+ * @param {string} props.sortBy - Current sort field
+ * @param {string} props.sortOrder - Current sort order
+ * @param {(sortBy: string) => void} props.onSortChange - Sort change callback
+ */
+export function FileList({
+  files = [],
+  onOpen,
+  onSelect,
+  selectedFiles = new Set(),
+  onContextMenu,
+  sortBy = "name",
+  sortOrder = "asc",
+  onSortChange,
+}) {
+  const handleRowClick = useCallback(
+    (file, event) => {
+      event.stopPropagation();
+      onSelect?.(file, event);
+    },
+    [onSelect]
+  );
+
+  const handleRowDoubleClick = useCallback(
+    (file, event) => {
+      event.stopPropagation();
+      onOpen?.(file);
+    },
+    [onOpen]
+  );
+
+  const handleContextMenu = useCallback(
+    (e, file) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onContextMenu?.(file, { x: e.clientX, y: e.clientY });
+    },
+    [onContextMenu]
+  );
+
+  if (!files || files.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center h-64"
+      >
+        <p className="text-body-regular text-text-secondary">
+          No files or folders
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="border-b border-border-table">
+            <SortableHeader
+              field="name"
+              label="Name"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={onSortChange}
+            />
+            <SortableHeader
+              field="size"
+              label="Size"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={onSortChange}
+              align="end"
+            />
+            <SortableHeader
+              field="modified"
+              label="Modified"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={onSortChange}
+            />
+            <SortableHeader
+              field="type"
+              label="Type"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={onSortChange}
+            />
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((file) => {
+            const isSelected = selectedFiles.has(file.path);
+
+            return (
+              <tr
+                key={file.path}
+                onClick={(e) => handleRowClick(file, e)}
+                onDoubleClick={(e) => handleRowDoubleClick(file, e)}
+                onContextMenu={(e) => handleContextMenu(e, file)}
+                className={cx(
+                  "border-b border-separator-border cursor-pointer transition-colors",
+                  "hover:bg-background-secondary-hover",
+                  isSelected && "bg-accent-50 dark:bg-accent-950"
+                )}
+              >
+                {/* Name */}
+                <td className="px-4 py-2">
+                  <div className="flex items-center gap-2">
+                    <FileIcon
+                      type={file.type}
+                      extension={file.extension}
+                      size="sm"
+                    />
+                    <span className="text-body-regular text-text-primary truncate">
+                      {file.name}
+                    </span>
+                  </div>
+                </td>
+
+                {/* Size */}
+                <td className="px-4 py-2 text-end">
+                  <span className="text-body-regular text-text-secondary">
+                    {file.type === "directory" ? "—" : formatSize(file.size)}
+                  </span>
+                </td>
+
+                {/* Modified */}
+                <td className="px-4 py-2">
+                  <span className="text-body-regular text-text-secondary">
+                    {formatDate(file.modifiedAt)}
+                  </span>
+                </td>
+
+                {/* Type */}
+                <td className="px-4 py-2">
+                  <span className="text-body-regular text-text-secondary">
+                    {file.type === "directory"
+                      ? "Folder"
+                      : getTypeLabel(file.extension)}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
