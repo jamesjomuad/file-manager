@@ -176,8 +176,12 @@ export function ImageViewer({
   // Sync gallery navigation back to tab state (embedded mode)
   // --------------------------------------------------------------------------
 
+  // Track previous index to avoid redundant onNavigate calls
+  const prevIndexRef = useRef(currentIndex);
+
   useEffect(() => {
-    if (embedded && onNavigate) {
+    if (embedded && onNavigate && currentIndex !== prevIndexRef.current) {
+      prevIndexRef.current = currentIndex;
       onNavigate(currentIndex);
     }
   }, [embedded, onNavigate, currentIndex]);

@@ -7,6 +7,7 @@ import { EditorTabContent } from "@/components/workspace/tabs/editor-tab";
 import { ImageViewerTabContent } from "@/components/workspace/tabs/image-viewer-tab";
 import { TextViewerTabContent } from "@/components/workspace/tabs/text-viewer-tab";
 import { PdfViewerTabContent } from "@/components/workspace/tabs/pdf-viewer-tab";
+import { MarkdownViewerTabContent } from "@/components/workspace/tabs/markdown-viewer-tab";
 import { ArchiveTabContent } from "@/components/workspace/tabs/archive-tab";
 import { useWorkspace } from "@/contexts/workspace-context";
 
@@ -35,6 +36,8 @@ function TabContentRenderer() {
       return <TextViewerTabContent tab={activeTab} />;
     case "pdf-viewer":
       return <PdfViewerTabContent tab={activeTab} />;
+    case "markdown-viewer":
+      return <MarkdownViewerTabContent tab={activeTab} />;
     case "archive":
       return <ArchiveTabContent tab={activeTab} />;
     default:

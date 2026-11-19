@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 /**
- * @typedef {'explorer'|'editor'|'image-viewer'|'text-viewer'|'pdf-viewer'|'archive'} TabType
+ * @typedef {'explorer'|'editor'|'image-viewer'|'text-viewer'|'pdf-viewer'|'markdown-viewer'|'archive'} TabType
  */
 
 /**

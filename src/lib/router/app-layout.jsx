@@ -39,7 +39,9 @@ export function AppLayout() {
         openTab("image-viewer", { path: file.path, title: file.name });
       } else if (ext === ".pdf") {
         openTab("pdf-viewer", { path: file.path, title: file.name });
-      } else if ([".txt", ".md", ".log", ".csv"].includes(ext)) {
+      } else if ([".md", ".markdown"].includes(ext)) {
+        openTab("markdown-viewer", { path: file.path, title: file.name });
+      } else if ([".txt", ".log", ".csv"].includes(ext)) {
         openTab("text-viewer", { path: file.path, title: file.name });
       } else if ([".zip", ".tar", ".gz", ".7z", ".rar"].includes(ext)) {
         openTab("archive", { path: file.path, title: file.name });

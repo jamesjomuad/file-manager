@@ -95,6 +95,9 @@ export function useImageViewer({
     ? galleryFiles[currentIndex]
     : file;
 
+  // Track previous file path to avoid redundant updates
+  const prevFilePathRef = useRef(file?.path);
+
   // --------------------------------------------------------------------------
   // Zoom actions
   // --------------------------------------------------------------------------
@@ -200,13 +203,27 @@ export function useImageViewer({
   // --------------------------------------------------------------------------
 
   const resetTransform = useCallback(() => {
-    setTransform({
-      zoom: 1,
-      rotation: 0,
-      flipH: false,
-      flipV: false,
-      panX: 0,
-      panY: 0,
+    setTransform((prev) => {
+      // Bail out if already at defaults — avoids creating a new object
+      // reference that would trigger an unnecessary re-render
+      if (
+        prev.zoom === 1 &&
+        prev.rotation === 0 &&
+        prev.flipH === false &&
+        prev.flipV === false &&
+        prev.panX === 0 &&
+        prev.panY === 0
+      ) {
+        return prev;
+      }
+      return {
+        zoom: 1,
+        rotation: 0,
+        flipH: false,
+        flipV: false,
+        panX: 0,
+        panY: 0,
+      };
     });
   }, []);
 
@@ -242,16 +259,21 @@ export function useImageViewer({
 
   // Update current index when file prop changes or when gallery loads later
   useEffect(() => {
-    if (file && galleryFiles.length > 0) {
-      const idx = galleryFiles.findIndex((f) => f.path === file.path);
-      if (idx >= 0) {
+    const currentPath = file?.path;
+    const prevPath = prevFilePathRef.current;
+    
+    // Only update if file path actually changed
+    if (currentPath !== prevPath && file && galleryFiles.length > 0) {
+      const idx = galleryFiles.findIndex((f) => f.path === currentPath);
+      if (idx >= 0 && idx !== currentIndex) {
         setCurrentIndex(idx);
         resetTransform();
         setImageMetadata(null);
         setLoading(true);
       }
+      prevFilePathRef.current = currentPath;
     }
-  }, [file?.path, galleryFiles.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [file?.path, galleryFiles.length, currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --------------------------------------------------------------------------
   // Fullscreen

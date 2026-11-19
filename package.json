@@ -21,7 +21,11 @@
     "react": "19.3.0",
     "react-aria-components": "^1.22.1",
     "react-dom": "19.3.0",
+    "react-markdown": "^10.1.0",
+    "react-pdf": "^11.1.0",
     "react-router-dom": "^7.18.6",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "sharp": "^0.35.5",
     "tailwind-merge": "^3.7.0",
     "zustand": "^5.1.0"

@@ -21,7 +21,7 @@ import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useTrashStore } from "@/stores/trash-store";
-import { canPreview, isImage } from "@/lib/file-type";
+import { canPreview, isImage, isPDF, isText } from "@/lib/file-type";
 import { isSupportedImageFormat } from "@/lib/image/image-utils";
 import {
   RiEyeLine,
@@ -260,6 +260,8 @@ export function ExplorerTabContent({ tab }) {
         });
 
         // Open in appropriate tab based on file type
+        const ext = file.extension?.toLowerCase();
+        
         if (isSupportedImageFormat(file.extension)) {
           // Open in image viewer tab — pass only the single file, not the entire directory
           // Gallery metadata will be loaded on-demand when user navigates
@@ -270,8 +272,24 @@ export function ExplorerTabContent({ tab }) {
               directoryPath: currentPath, // Pass directory path for on-demand gallery loading
             },
           });
+        } else if (isPDF(file.extension)) {
+          openTab("pdf-viewer", {
+            path: file.path,
+            title: file.name,
+          });
+        } else if ([".md", ".markdown"].includes(ext)) {
+          openTab("markdown-viewer", {
+            path: file.path,
+            title: file.name,
+          });
+        } else if (isText(file.extension) || !ext) {
+          // Plain text, logs, csv, or no extension → editor
+          openTab("editor", {
+            path: file.path,
+            title: file.name,
+          });
         } else {
-          // Open in editor tab
+          // Code files → editor
           openTab("editor", {
             path: file.path,
             title: file.name,
