@@ -15,12 +15,14 @@ import {
   RiDeleteBinLine,
   RiCheckboxBlankLine,
   RiCheckboxFill,
+  RiArrowUpLine,
 } from "@remixicon/react";
 
 /**
  * File toolbar with action buttons, search, sorting, and bulk operations
  * @param {Object} props
  * @param {string} props.currentPath - Current directory path
+ * @param {(path: string) => void} props.onNavigate - Navigate to path
  * @param {() => void} props.onCreateFolder - Create folder callback
  * @param {() => void} props.onCreateFile - Create file callback
  * @param {(files: File[]) => void} props.onUpload - Upload callback
@@ -38,6 +40,8 @@ import {
  */
 export function FileToolbar({
   currentPath,
+  onNavigate,
+  onNavigateUp,
   onCreateFolder,
   onCreateFile,
   onUpload,
@@ -81,8 +85,19 @@ export function FileToolbar({
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-background-primary-default border-b border-separator-border shrink-0">
-      {/* Left side: action buttons */}
+      {/* Left side: navigation + action buttons */}
       <div className="flex items-center gap-2">
+        {/* Back to parent directory */}
+        {currentPath && (
+          <Button
+            variant="ghost"
+            size="small"
+            iconOnly
+            leadingIcon={RiArrowUpLine}
+            aria-label="Go to parent directory"
+            onClick={onNavigateUp}
+          />
+        )}
         <Button
           variant="secondary"
           size="small"

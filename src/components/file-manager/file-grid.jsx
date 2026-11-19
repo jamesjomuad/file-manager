@@ -3,7 +3,9 @@
 import { useCallback } from "react";
 import { cx } from "@/utils/cx";
 import { FileIcon } from "@/components/file-manager/file-icon";
+import { ThumbnailImage } from "@/components/file-manager/thumbnail-image";
 import { RiStarLine, RiStarFill } from "@remixicon/react";
+import { isSupportedImageFormat } from "@/lib/image/image-utils";
 
 /**
  * File grid/icon view component with multi-select
@@ -118,11 +120,16 @@ export function FileGrid({
                 </button>
               )}
 
-              <FileIcon
-                type={file.type}
-                extension={file.extension}
-                size="lg"
-              />
+              {/* Thumbnail for image files */}
+              {file.type !== 'directory' && isSupportedImageFormat(file.extension) ? (
+                <ThumbnailImage file={file} size="medium" />
+              ) : (
+                <FileIcon
+                  type={file.type}
+                  extension={file.extension}
+                  size="lg"
+                />
+              )}
               <span className="text-caption-1-medium text-text-primary text-center truncate w-full">
                 {file.name}
               </span>

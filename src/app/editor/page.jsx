@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { TabBar } from '@/components/editor/tab-bar';
@@ -9,6 +10,7 @@ import { Button } from '@/components/base/buttons/button';
 import { useEditorTabs } from '@/hooks/use-editor-tabs';
 import { detectLanguage, getLanguageName } from '@/lib/monaco/languages';
 import {
+  RiFolderLine,
   RiFileTextLine,
   RiSaveLine,
   RiCloseLine,
@@ -165,10 +167,49 @@ function EditorContent() {
   // Language name for display in header
   const languageName = getLanguageName(detectLanguage(activeTab.path));
 
+  // Parse file path into breadcrumb segments
+  const pathSegments = activeTab.path.split('/').filter(Boolean);
+  const directoryPath = pathSegments.slice(0, -1).join('/');
+
   return (
     <AppShell currentPath="/editor">
       <div className="flex flex-col h-full">
-        {/* Tab bar */}
+        {/* Directory breadcrumb - filesystem navigation */}
+        <div className="flex items-center gap-1.5 px-4 py-2 border-b border-separator-border bg-background-primary-default overflow-x-auto">
+          <Link
+            href="/files"
+            className="flex items-center gap-1 text-body-medium text-text-secondary hover:text-text-primary transition-colors shrink-0"
+          >
+            <RiFolderLine className="w-4 h-4" />
+            <span>Files</span>
+          </Link>
+          {pathSegments.slice(0, -1).map((segment, index) => {
+            const segmentPath = pathSegments.slice(0, index + 1).join('/');
+            return (
+              <span key={segmentPath} className="flex items-center gap-1.5 shrink-0">
+                <span className="text-text-tertiary">/</span>
+                <Link
+                  href={`/files?path=${encodeURIComponent(segmentPath)}`}
+                  className="text-body-medium text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  {segment}
+                </Link>
+              </span>
+            );
+          })}
+          <span className="text-text-tertiary shrink-0">/</span>
+          <span className="flex items-center gap-1 text-body-medium text-text-primary shrink-0">
+            <RiFileTextLine className="w-4 h-4" />
+            {activeTab.name}
+          </span>
+          {activeTab.unsavedChanges && (
+            <span className="text-caption-1-regular text-text-tertiary shrink-0">
+              • unsaved
+            </span>
+          )}
+        </div>
+
+        {/* Tab bar - editor tabs */}
         <TabBar
           tabs={tabs}
           activeIndex={activeTabIndex}
@@ -178,20 +219,11 @@ function EditorContent() {
           onCloseAll={closeAllTabs}
         />
 
-        {/* Editor header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-separator-border bg-background-primary-default">
+        {/* Editor action bar */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-separator-border bg-background-primary-default">
           <div className="flex items-center gap-2">
-            <RiFileTextLine className="w-5 h-5 text-foreground-icon-secondary" />
-            <span className="text-body-medium text-text-primary">
-              {activeTab.name}
-            </span>
-            {activeTab.unsavedChanges && (
-              <span className="text-caption-1-regular text-text-tertiary">
-                • unsaved changes
-              </span>
-            )}
             <span className="text-caption-1-regular text-text-tertiary">
-              — {languageName}
+              {languageName}
             </span>
           </div>
 

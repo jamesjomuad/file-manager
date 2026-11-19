@@ -9,7 +9,9 @@ import {
   RiDownloadLine,
   RiDraggable,
   RiEyeLine,
+  RiImageLine,
 } from '@remixicon/react';
+import { isSupportedImageFormat } from '@/lib/image/image-utils';
 
 /**
  * Context menu for file actions
@@ -120,6 +122,21 @@ export function FileContextMenu({
         >
           <RiEyeLine className="w-4 h-4 text-foreground-icon-secondary" />
           <span>Preview</span>
+        </button>
+      )}
+
+      {/* Open in Image Viewer - only for supported image files */}
+      {file?.type !== 'directory' && onPreview && isSupportedImageFormat(file?.extension) && (
+        <button
+          onClick={() => handleAction(onPreview)}
+          className={cx(
+            'w-full px-3 py-2 flex items-center gap-3 text-start',
+            'text-body-regular text-text-primary',
+            'hover:bg-background-secondary-hover transition-colors'
+          )}
+        >
+          <RiImageLine className="w-4 h-4 text-foreground-icon-secondary" />
+          <span>Open in Image Viewer</span>
         </button>
       )}
 

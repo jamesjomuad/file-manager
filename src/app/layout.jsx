@@ -2,6 +2,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/themes.css";
 import { ThemeProvider } from "@/contexts/theme-context";
+import { HashRouterProvider } from "@/contexts/hash-router-context";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -53,7 +54,9 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="h-full flex flex-col bg-background-full">
-        <ThemeProvider>{children}</ThemeProvider>
+        <HashRouterProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </HashRouterProvider>
       </body>
     </html>
   );

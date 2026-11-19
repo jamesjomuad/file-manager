@@ -10,7 +10,7 @@ import { RiArrowRightSLine } from "@remixicon/react";
  * @param {(path: string) => void} props.onNavigate - Callback when a segment is clicked
  */
 export function Breadcrumb({ path = "", onNavigate }) {
-  const segments = path ? path.split("/").filter(Boolean) : [];
+  const segments = path ? path.split(/[\\/]/).filter(Boolean) : [];
 
   /**
    * Build the accumulated path up to and including the given index
@@ -18,7 +18,7 @@ export function Breadcrumb({ path = "", onNavigate }) {
    * @returns {string}
    */
   const getPathUpTo = (index) => {
-    return segments.slice(0, index + 1).join("/");
+    return segments.slice(0, index + 1).join("\\");
   };
 
   return (
@@ -28,7 +28,7 @@ export function Breadcrumb({ path = "", onNavigate }) {
         <button
           type="button"
           onClick={() => onNavigate("")}
-          className="text-body-medium text-text-secondary hover:text-text-primary cursor-pointer shrink-0"
+          className="text-body-medium text-text-secondary hover:text-accent-500 hover:underline cursor-pointer shrink-0 transition-colors"
         >
           Root
         </button>
@@ -48,19 +48,18 @@ export function Breadcrumb({ path = "", onNavigate }) {
               aria-hidden
             />
 
-            {isLast ? (
-              <span className="text-body-medium text-text-primary font-medium truncate">
-                {segment}
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onNavigate(getPathUpTo(index))}
-                className="text-body-medium text-text-secondary hover:text-text-primary cursor-pointer truncate"
-              >
-                {segment}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => onNavigate(getPathUpTo(index))}
+              className={cx(
+                "text-body-medium truncate transition-colors",
+                isLast
+                  ? "text-text-primary font-medium hover:text-accent-500 hover:underline cursor-pointer"
+                  : "text-text-secondary hover:text-accent-500 hover:underline cursor-pointer"
+              )}
+            >
+              {segment}
+            </button>
           </div>
         );
       })}

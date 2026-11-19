@@ -17,7 +17,7 @@ export async function listDirectory(dirPath = '') {
       const fullPath = path.join(absolutePath, entry.name);
       try {
         const stats = await fs.stat(fullPath);
-        return {
+        const item = {
           name: entry.name,
           path: path.join(dirPath, entry.name),
           type: entry.isDirectory() ? 'directory' : 'file',
@@ -28,6 +28,8 @@ export async function listDirectory(dirPath = '') {
           modifiedAt: stats.mtime.toISOString(),
           extension: entry.isFile() ? path.extname(entry.name) : null,
         };
+
+        return item;
       } catch {
         return null; // Skip inaccessible entries
       }
@@ -37,6 +39,11 @@ export async function listDirectory(dirPath = '') {
   // Sort: directories first, then files alphabetically
   return items
     .filter(Boolean)
+    .filter((item) => {
+      // Hide system directories from the file explorer
+      const hiddenDirs = ['.trash', '.thumbnails'];
+      return !hiddenDirs.includes(item.name);
+    })
     .sort((a, b) => {
       if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
       return a.name.localeCompare(b.name);

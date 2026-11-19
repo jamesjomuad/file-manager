@@ -10,9 +10,11 @@ import { FileContextMenu } from "@/components/file-manager/file-context-menu";
 import { FileDropZone } from "@/components/file-manager/file-drop-zone";
 import { ConfirmDialog } from "@/components/file-manager/confirm-dialog";
 import { FilePreviewModal } from "@/components/file-manager/file-preview-modal";
+import { ImageViewer } from "@/components/image-viewer/image-viewer";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
-import { canPreview } from "@/lib/file-type";
+import { canPreview, isImage } from "@/lib/file-type";
+import { isSupportedImageFormat } from "@/lib/image/image-utils";
 
 /**
  * Main file explorer page
@@ -44,6 +46,10 @@ export default function FilesPage() {
 
   // Preview modal state
   const [previewFile, setPreviewFile] = useState(null);
+
+  // Image viewer state
+  const [imageViewerFile, setImageViewerFile] = useState(null);
+  const [imageViewerGalleryFiles, setImageViewerGalleryFiles] = useState([]);
 
   /**
    * Fetch files for the current path
@@ -197,11 +203,22 @@ export default function FilesPage() {
       } else {
         // Track this file as recently opened
         addRecent(file.path);
-        // Navigate to editor for files
+        
+        // Open image files in the dedicated image viewer
+        if (isSupportedImageFormat(file.extension)) {
+          const imageFiles = sortedFiles().filter(
+            (f) => f.type !== "directory" && isSupportedImageFormat(f.extension)
+          );
+          setImageViewerFile(file);
+          setImageViewerGalleryFiles(imageFiles);
+          return;
+        }
+        
+        // Navigate to editor for non-image files
         router.push(`/editor?path=${encodeURIComponent(file.path)}`);
       }
     },
-    [router, addRecent]
+    [router, addRecent, sortedFiles]
   );
 
   /**
@@ -560,6 +577,35 @@ export default function FilesPage() {
   }, []);
 
   /**
+   * Handle close preview
+   */
+  const handleClosePreview = useCallback(() => {
+    setPreviewFile(null);
+  }, []);
+
+  /**
+   * Handle close image viewer
+   */
+  const handleCloseImageViewer = useCallback(() => {
+    setImageViewerFile(null);
+    setImageViewerGalleryFiles([]);
+  }, []);
+
+  /**
+   * Handle open image in dedicated viewer (from preview modal or context menu)
+   * @param {Object} file
+   */
+  const handleOpenImageViewer = useCallback((file) => {
+    if (file.type === 'directory' || !isSupportedImageFormat(file.extension)) return;
+    const imageFiles = sortedFiles().filter(
+      (f) => f.type !== "directory" && isSupportedImageFormat(f.extension)
+    );
+    setImageViewerFile(file);
+    setImageViewerGalleryFiles(imageFiles);
+    setPreviewFile(null); // Close preview modal if open
+  }, [sortedFiles]);
+
+  /**
    * Handle file preview
    * @param {Object} file - File to preview
    */
@@ -573,15 +619,14 @@ export default function FilesPage() {
       return;
     }
     
+    // For images, open the dedicated image viewer directly
+    if (isSupportedImageFormat(file.extension)) {
+      handleOpenImageViewer(file);
+      return;
+    }
+    
     setPreviewFile(file);
-  }, [router]);
-
-  /**
-   * Handle close preview
-   */
-  const handleClosePreview = useCallback(() => {
-    setPreviewFile(null);
-  }, []);
+  }, [router, handleOpenImageViewer]);
 
   /**
    * Handle drag enter on file listing area
@@ -737,6 +782,25 @@ export default function FilesPage() {
         open={!!previewFile}
         file={previewFile}
         onClose={handleClosePreview}
+      />
+
+      {/* Dedicated image viewer */}
+      <ImageViewer
+        open={!!imageViewerFile}
+        file={imageViewerFile}
+        galleryFiles={imageViewerGalleryFiles}
+        onClose={handleCloseImageViewer}
+        onRename={handleRename}
+        onCopy={handleCopy}
+        onMove={handleMove}
+        onDelete={(file) => {
+          setConfirmDialog({
+            file,
+            title: 'Move to Trash',
+            message: `Are you sure you want to move "${file.name}" to trash?`,
+            confirmLabel: 'Move to Trash',
+          });
+        }}
       />
     </AppShell>
   );

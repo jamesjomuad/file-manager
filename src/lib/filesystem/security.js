@@ -16,7 +16,12 @@ export async function validatePath(userPath) {
 
   // Path traversal check
   const normalizedRoot = path.normalize(ROOT_DIR);
-  if (!absolutePath.startsWith(normalizedRoot + path.sep) && absolutePath !== normalizedRoot) {
+  // Handle drive roots (e.g., "D:\") which already end with separator
+  const rootPrefix = normalizedRoot.endsWith(path.sep) 
+    ? normalizedRoot 
+    : normalizedRoot + path.sep;
+  
+  if (!absolutePath.startsWith(rootPrefix) && absolutePath !== normalizedRoot) {
     throw Object.assign(new Error('Path traversal detected'), { status: 403 });
   }
 
@@ -46,7 +51,12 @@ export async function validatePath(userPath) {
 function ensureWithinRoot(absolutePath) {
   const normalizedRoot = path.normalize(ROOT_DIR);
   const normalized = path.normalize(absolutePath);
-  if (!normalized.startsWith(normalizedRoot + path.sep) && normalized !== normalizedRoot) {
+  // Handle drive roots (e.g., "D:\") which already end with separator
+  const rootPrefix = normalizedRoot.endsWith(path.sep) 
+    ? normalizedRoot 
+    : normalizedRoot + path.sep;
+  
+  if (!normalized.startsWith(rootPrefix) && normalized !== normalizedRoot) {
     throw Object.assign(new Error('Path traversal detected'), { status: 403 });
   }
 }

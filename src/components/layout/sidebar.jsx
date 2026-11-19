@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { cx } from "@/utils/cx";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
+import { useHashRouterContext } from "@/contexts/hash-router-context";
 import { useState, useEffect } from "react";
 import {
   RiFolderLine,
@@ -28,11 +28,11 @@ function CountBadge({ count }) {
 }
 
 /**
- * Sidebar navigation component
- * @param {Object} props
- * @param {string} props.currentPath - Current route path for highlighting active item
+ * Sidebar navigation component.
+ * Uses hash-based navigation for application routes.
  */
-export function Sidebar({ currentPath = "/files" }) {
+export function Sidebar() {
+  const { route, navigate } = useHashRouterContext();
   const { favorites } = useFavorites();
   const { recentFiles } = useRecentFiles();
   const [trashCount, setTrashCount] = useState(0);
@@ -58,19 +58,12 @@ export function Sidebar({ currentPath = "/files" }) {
   }, []);
 
   const navItems = [
-    { label: "Files", href: "/files", icon: RiFolderLine, count: null },
-    { label: "Favorites", href: "/favorites", icon: RiStarLine, count: favorites.length },
-    { label: "Recent", href: "/recent", icon: RiTimeLine, count: recentFiles.length },
-    { label: "Trash", href: "/trash", icon: RiDeleteBinLine, count: trashCount },
-    { label: "Settings", href: "/settings", icon: RiSettings3Line, count: null },
+    { name: "explorer", label: "Explorer", icon: RiFolderLine, count: null },
+    { name: "favorites", label: "Favorites", icon: RiStarLine, count: favorites.length },
+    { name: "recent", label: "Recent", icon: RiTimeLine, count: recentFiles.length },
+    { name: "trash", label: "Trash", icon: RiDeleteBinLine, count: trashCount },
+    { name: "settings", label: "Settings", icon: RiSettings3Line, count: null },
   ];
-
-  const isActive = (href) => {
-    if (href.includes("?")) {
-      return currentPath.startsWith(href.split("?")[0]);
-    }
-    return currentPath === href;
-  };
 
   return (
     <aside className="w-56 shrink-0 bg-background-secondary-default border-e border-separator-border flex flex-col h-full">
@@ -88,14 +81,14 @@ export function Sidebar({ currentPath = "/files" }) {
       <nav className="flex-1 p-2 flex flex-col gap-0.5">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = isActive(item.href);
+          const active = route.name === item.name;
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
+            <button
+              key={item.name}
+              onClick={() => navigate(item.name)}
               className={cx(
-                "flex items-center gap-2 px-3 py-2 rounded-lg text-body-medium transition-colors",
+                "flex items-center gap-2 px-3 py-2 rounded-lg text-body-medium transition-colors w-full text-start",
                 active
                   ? "bg-background-secondary-hover text-text-primary"
                   : "text-text-secondary hover:bg-background-secondary-hover hover:text-text-primary"
@@ -104,7 +97,7 @@ export function Sidebar({ currentPath = "/files" }) {
               <Icon className="size-5" aria-hidden />
               <span>{item.label}</span>
               <CountBadge count={item.count} />
-            </Link>
+            </button>
           );
         })}
       </nav>

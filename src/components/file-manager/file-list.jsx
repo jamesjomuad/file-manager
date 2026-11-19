@@ -3,7 +3,9 @@
 import { useCallback } from "react";
 import { cx } from "@/utils/cx";
 import { FileIcon } from "@/components/file-manager/file-icon";
+import { ThumbnailImage } from "@/components/file-manager/thumbnail-image";
 import { RiSortAsc, RiSortDesc, RiStarLine, RiStarFill } from "@remixicon/react";
+import { isSupportedImageFormat } from "@/lib/image/image-utils";
 
 /**
  * Format file size to human-readable string
@@ -218,11 +220,15 @@ export function FileList({
                 {/* Name */}
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-2">
-                    <FileIcon
-                      type={file.type}
-                      extension={file.extension}
-                      size="sm"
-                    />
+                    {file.type !== 'directory' && isSupportedImageFormat(file.extension) ? (
+                      <ThumbnailImage file={file} size="small" />
+                    ) : (
+                      <FileIcon
+                        type={file.type}
+                        extension={file.extension}
+                        size="sm"
+                      />
+                    )}
                     <span className="text-body-regular text-text-primary truncate">
                       {file.name}
                     </span>
