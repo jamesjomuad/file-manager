@@ -66,16 +66,26 @@ function loadTabsFromStorage() {
  * }}
  */
 export function useEditorTabs() {
-  const initial = useRef(loadTabsFromStorage());
   /** @type {[Array<Object>, React.Dispatch<React.StateSetter<Array<Object>>>]} */
-  const [tabs, setTabs] = useState(initial.current.tabs);
+  const [tabs, setTabs] = useState(() => loadTabsFromStorage().tabs);
   /** @type {[number, React.Dispatch<React.StateSetter<number>>]} */
   const [activeIndex, setActiveIndex] = useState(() => {
-    const idx = initial.current.activeIndex;
-    // Clamp to valid range in case stored index is out of bounds
-    return tabs.length > 0 ? Math.min(idx, tabs.length - 1) : 0;
+    const { tabs: storedTabs, activeIndex: idx } = loadTabsFromStorage();
+    return storedTabs.length > 0 ? Math.min(idx, storedTabs.length - 1) : 0;
   });
-  const initialized = useRef(true);
+
+  // Refs to read latest state inside event handlers and effects
+  const tabsRef = useRef(tabs);
+  const activeIndexRef = useRef(activeIndex);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    tabsRef.current = tabs;
+  }, [tabs]);
+
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
 
   // Persist tabs to sessionStorage on every change
   useEffect(() => {
@@ -93,7 +103,10 @@ export function useEditorTabs() {
    * The currently active tab object, or null if no tabs are open.
    */
   const activeTab = useMemo(
-    () => (tabs.length > 0 && activeIndex >= 0 && activeIndex < tabs.length ? tabs[activeIndex] : null),
+    () =>
+      tabs.length > 0 && activeIndex >= 0 && activeIndex < tabs.length
+        ? tabs[activeIndex]
+        : null,
     [tabs, activeIndex]
   );
 
@@ -113,35 +126,16 @@ export function useEditorTabs() {
   const openTab = useCallback(async (filePath) => {
     if (!filePath) return;
 
-    // Check if already open — switch to it
-    setTabs((prev) => {
-      const existingIndex = prev.findIndex((t) => t.path === filePath);
-      if (existingIndex !== -1) {
-        setActiveIndex(existingIndex);
-        return prev; // No state change needed, just switch
-      }
-      return prev; // We'll handle the new tab below
-    });
-
-    // Re-check synchronously via a ref-like pattern:
-    // We need to know if the tab existed to avoid duplicate fetches.
-    // Use functional update and a flag.
-    let alreadyOpen = false;
-    setTabs((prev) => {
-      const existingIndex = prev.findIndex((t) => t.path === filePath);
-      if (existingIndex !== -1) {
-        alreadyOpen = true;
-        setActiveIndex(existingIndex);
-      }
-      return prev;
-    });
-
-    if (alreadyOpen) return;
+    // Check if already open — switch to it and bail
+    const currentTabs = tabsRef.current;
+    const existingIndex = currentTabs.findIndex((t) => t.path === filePath);
+    if (existingIndex !== -1) {
+      setActiveIndex(existingIndex);
+      return;
+    }
 
     try {
-      const response = await fetch(
-        `/api/files/${filePath}?action=read`
-      );
+      const response = await fetch(`/api/files/${filePath}?action=read`);
       const data = await response.json();
 
       if (!data.success) {
@@ -183,36 +177,24 @@ export function useEditorTabs() {
    * @returns {Promise<boolean>} Whether the tab was closed
    */
   const closeTab = useCallback(async (index) => {
-    let canClose = true;
+    const currentTabs = tabsRef.current;
+    if (index < 0 || index >= currentTabs.length) return false;
 
-    setTabs((prev) => {
-      if (index < 0 || index >= prev.length) return prev;
-      if (prev[index].unsavedChanges) {
-        const confirmed = window.confirm(
-          `"${prev[index].name}" has unsaved changes. Close anyway?`
-        );
-        if (!confirmed) {
-          canClose = false;
-        }
-      }
-      return prev;
-    });
+    if (currentTabs[index].unsavedChanges) {
+      const confirmed = window.confirm(
+        `"${currentTabs[index].name}" has unsaved changes. Close anyway?`
+      );
+      if (!confirmed) return false;
+    }
 
-    if (!canClose) return false;
-
-    setTabs((prev) => {
-      if (index < 0 || index >= prev.length) return prev;
-      const next = prev.filter((_, i) => i !== index);
-
-      // Adjust active index
-      setActiveIndex((currentActive) => {
-        if (next.length === 0) return 0;
-        if (index < currentActive) return currentActive - 1;
-        if (index === currentActive) return Math.min(currentActive, next.length - 1);
-        return currentActive;
-      });
-
-      return next;
+    setTabs((prev) => prev.filter((_, i) => i !== index));
+    setActiveIndex((currentActive) => {
+      const newLength = currentTabs.length - 1;
+      if (newLength === 0) return 0;
+      if (index < currentActive) return currentActive - 1;
+      if (index === currentActive)
+        return Math.min(currentActive, newLength - 1);
+      return currentActive;
     });
 
     return true;
@@ -222,17 +204,16 @@ export function useEditorTabs() {
    * Close all tabs. Prompts for any unsaved changes.
    */
   const closeAllTabs = useCallback(async () => {
-    setTabs((prev) => {
-      const hasDirty = prev.some((t) => t.unsavedChanges);
-      if (hasDirty) {
-        const confirmed = window.confirm(
-          "Close all tabs? Unsaved changes will be lost."
-        );
-        if (!confirmed) return prev;
-      }
-      setActiveIndex(0);
-      return [];
-    });
+    const currentTabs = tabsRef.current;
+    const hasDirty = currentTabs.some((t) => t.unsavedChanges);
+    if (hasDirty) {
+      const confirmed = window.confirm(
+        "Close all tabs? Unsaved changes will be lost."
+      );
+      if (!confirmed) return;
+    }
+    setTabs([]);
+    setActiveIndex(0);
   }, []);
 
   /**
@@ -240,22 +221,21 @@ export function useEditorTabs() {
    * @param {number} index - Tab index to keep
    */
   const closeOtherTabs = useCallback(async (index) => {
-    setTabs((prev) => {
-      if (index < 0 || index >= prev.length) return prev;
-      const kept = prev[index];
-      const others = prev.filter((_, i) => i !== index);
-      const hasDirtyOthers = others.some((t) => t.unsavedChanges);
+    const currentTabs = tabsRef.current;
+    if (index < 0 || index >= currentTabs.length) return;
 
-      if (hasDirtyOthers) {
-        const confirmed = window.confirm(
-          "Close other tabs? Unsaved changes will be lost."
-        );
-        if (!confirmed) return prev;
-      }
+    const others = currentTabs.filter((_, i) => i !== index);
+    const hasDirtyOthers = others.some((t) => t.unsavedChanges);
 
-      setActiveIndex(0);
-      return [kept];
-    });
+    if (hasDirtyOthers) {
+      const confirmed = window.confirm(
+        "Close other tabs? Unsaved changes will be lost."
+      );
+      if (!confirmed) return;
+    }
+
+    setTabs([currentTabs[index]]);
+    setActiveIndex(0);
   }, []);
 
   /**
@@ -263,10 +243,7 @@ export function useEditorTabs() {
    * @param {number} index - Tab index to activate
    */
   const switchTab = useCallback((index) => {
-    setActiveIndex((prev) => {
-      // Validate bounds via functional update
-      return index;
-    });
+    setActiveIndex(index);
   }, []);
 
   /**
@@ -277,7 +254,6 @@ export function useEditorTabs() {
   const updateTabContent = useCallback((index, content) => {
     setTabs((prev) => {
       if (index < 0 || index >= prev.length) return prev;
-      const tab = prev[index];
       return prev.map((t, i) =>
         i === index
           ? {
@@ -296,20 +272,16 @@ export function useEditorTabs() {
    * @returns {Promise<boolean>} Whether the save succeeded
    */
   const saveTab = useCallback(async (index) => {
-    let tabToSave = null;
-    setTabs((prev) => {
-      if (index < 0 || index >= prev.length) return prev;
-      tabToSave = prev[index];
-      return prev;
-    });
+    const currentTabs = tabsRef.current;
+    if (index < 0 || index >= currentTabs.length) return false;
 
-    if (!tabToSave) return false;
+    const tab = currentTabs[index];
 
     try {
-      const response = await fetch(`/api/files/${tabToSave.path}`, {
+      const response = await fetch(`/api/files/${tab.path}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: tabToSave.content }),
+        body: JSON.stringify({ content: tab.content }),
       });
 
       const data = await response.json();
@@ -355,58 +327,42 @@ export function useEditorTabs() {
      */
     const handleKeyDown = (e) => {
       const isMod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
 
       // Ctrl/Cmd+W — Close active tab
-      if (isMod && !e.shiftKey && e.key === "w") {
+      if (isMod && !e.shiftKey && key === "w") {
         e.preventDefault();
-        setTabs((prev) => {
-          if (prev.length === 0) return prev;
-          // We'll read activeIndex from the closure — but it might be stale.
-          // Use a workaround: store it in a ref, or just trigger closeTab.
-          return prev; // handled below
-        });
-        // Call closeTab for the current active tab
-        setActiveIndex((currentIdx) => {
-          // We need to close this tab — but closeTab is async with confirm.
-          // Trigger it outside the state setter.
-          // We use a microtask trick: just call closeTab.
-          // The current activeIndex is captured in the closure.
-          closeTab(currentIdx);
-          return currentIdx; // Don't change — closeTab handles it
-        });
+        if (tabsRef.current.length > 0) {
+          closeTab(activeIndexRef.current);
+        }
+        return;
       }
 
       // Ctrl/Cmd+Shift+W — Close all tabs
-      if (isMod && e.shiftKey && e.key === "W") {
+      if (isMod && e.shiftKey && key === "w") {
         e.preventDefault();
         closeAllTabs();
+        return;
       }
 
       // Ctrl/Cmd+Tab — Next tab
-      if (isMod && !e.shiftKey && e.key === "Tab") {
+      if (isMod && !e.shiftKey && key === "tab") {
         e.preventDefault();
-        setActiveIndex((prev) => {
-          // Need to know tab count — read from sessionStorage or derive
-          // We'll use the functional update with the tabs array
-          return prev; // handled below
-        });
-        setTabs((prev) => {
-          if (prev.length <= 1) return prev;
-          setActiveIndex((currentIdx) => (currentIdx + 1) % prev.length);
-          return prev;
-        });
+        const len = tabsRef.current.length;
+        if (len <= 1) return;
+        setActiveIndex((currentIdx) => (currentIdx + 1) % len);
+        return;
       }
 
       // Ctrl/Cmd+Shift+Tab — Previous tab
-      if (isMod && e.shiftKey && e.key === "Tab") {
+      if (isMod && e.shiftKey && key === "tab") {
         e.preventDefault();
-        setTabs((prev) => {
-          if (prev.length <= 1) return prev;
-          setActiveIndex((currentIdx) =>
-            currentIdx <= 0 ? prev.length - 1 : currentIdx - 1
-          );
-          return prev;
-        });
+        const len = tabsRef.current.length;
+        if (len <= 1) return;
+        setActiveIndex((currentIdx) =>
+          currentIdx <= 0 ? len - 1 : currentIdx - 1
+        );
+        return;
       }
     };
 

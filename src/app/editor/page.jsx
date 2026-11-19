@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { TabBar } from '@/components/editor/tab-bar';
@@ -13,7 +13,7 @@ import {
   RiFileTextLine,
   RiSaveLine,
   RiCloseLine,
-  RiUndoLine,
+  RiArrowGoBackLine,
 } from '@remixicon/react';
 
 /**
@@ -81,7 +81,7 @@ function EditorContent() {
   /**
    * Handle save action for the active tab.
    */
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!activeTab || !activeTab.unsavedChanges) return;
 
     try {
@@ -94,7 +94,7 @@ function EditorContent() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [activeTab, activeTabIndex, saveTab]);
 
   /**
    * Handle discard changes for the active tab.
@@ -127,7 +127,7 @@ function EditorContent() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, activeTabIndex, saveTab]);
+  }, [handleSave]);
 
   // Empty state — no tabs open
   if (tabs.length === 0) {
@@ -206,7 +206,7 @@ function EditorContent() {
               size="small"
               onClick={handleDiscard}
               disabled={!activeTab.unsavedChanges}
-              leadingIcon={RiUndoLine}
+              leadingIcon={RiArrowGoBackLine}
             >
               Discard
             </Button>

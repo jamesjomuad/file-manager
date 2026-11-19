@@ -165,8 +165,54 @@ export function useFileEditor(filePath) {
    * Load file when filePath changes
    */
   useEffect(() => {
-    loadFile(filePath);
-  }, [filePath, loadFile]);
+    async function fetchFile() {
+      // Reset state if no filePath
+      if (!filePath) {
+        setFileData(null);
+        setContent('');
+        setOriginalContent('');
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response = await fetch(`/api/files/${filePath}?action=read`);
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load file');
+        }
+
+        if (!isMountedRef.current) return;
+
+        const fileContent = data.data.content || '';
+        const fileName = data.data.path.split('/').pop();
+
+        setFileData({
+          name: fileName,
+          path: data.data.path,
+          size: data.data.size,
+          type: data.data.type,
+          modified: data.data.modified,
+          created: data.data.created,
+        });
+        setContent(fileContent);
+        setOriginalContent(fileContent);
+      } catch (err) {
+        if (!isMountedRef.current) return;
+        console.error('Failed to load file:', err);
+        setError(err.message || 'Failed to load file');
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchFile();
+  }, [filePath]);
 
   /**
    * Compute whether content has unsaved changes

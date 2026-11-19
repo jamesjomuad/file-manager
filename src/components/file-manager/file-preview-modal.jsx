@@ -26,98 +26,24 @@ import { formatFileSize } from '@/lib/filesystem/utils';
  * @param {() => void} props.onClose - Close callback
  */
 export function FilePreviewModal({ open, file, onClose }) {
-  const [content, setContent] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [copyState, setCopyState] = useState('idle'); // idle | copying | copied | error
-  const [zoom, setZoom] = useState(1);
-  const [imageDimensions, setImageDimensions] = useState(null);
-
   const modalRef = useRef(null);
   const previousFocusRef = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  const [prevFilePath, setPrevFilePath] = useState(file?.path ?? null);
 
-  /**
-   * Fetch text/code content for preview
-   * @param {string} filePath
-   */
-  const fetchTextContent = useCallback(async (filePath) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(`/api/files/${filePath}?action=read`);
-      if (!response.ok) {
-        throw new Error('Failed to load file content');
-      }
-
-      const data = await response.json();
-      setContent(data.data?.content ?? '');
-    } catch (err) {
-      console.error('Error loading file content:', err);
-      setError(err.message || 'Failed to load file');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Derive preview type from current file
-  const previewType = file ? getPreviewType(file.extension) : null;
-  const isOpen = open && !!file;
-
-  /**
-   * Load content when file changes or modal opens.
-   * Uses the file path as a key to reset state on file change.
-   */
-  const [loadedPath, setLoadedPath] = useState(null);
-
-  useEffect(() => {
-    if (!isOpen) {
-      // Reset state when modal closes
-      setContent(null);
-      setError(null);
-      setLoading(false);
-      setZoom(1);
-      setImageDimensions(null);
-      setCopyState('idle');
-      setLoadedPath(null);
-
-      // Restore focus on close
-      if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
-        previousFocusRef.current.focus();
-      }
-      return;
-    }
-
-    // Save the current focus and restore it when modal closes
-    previousFocusRef.current = document.activeElement;
-
-    // Skip if already loaded this file
-    if (loadedPath === file.path) return;
-    setLoadedPath(file.path);
-
-    // Reset for new file
-    setContent(null);
-    setError(null);
+  // Reset zoom when file changes — done during render per React's recommended pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  const currentPath = file?.path ?? null;
+  if (currentPath !== prevFilePath) {
+    setPrevFilePath(currentPath);
     setZoom(1);
-    setImageDimensions(null);
-    setCopyState('idle');
-
-    if (previewType === 'image' || previewType === 'pdf') {
-      // Images and PDFs are loaded directly via <img> and <iframe> — no fetch needed
-      setLoading(false);
-    } else if (previewType === 'text' || previewType === 'code') {
-      fetchTextContent(file.path);
-    } else {
-      setError('This file type cannot be previewed.');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadedPath is derived state; previewType is computed from file
-  }, [isOpen, file?.path, fetchTextContent]);
+  }
 
   /**
    * Close modal on Escape key
    */
   useEffect(() => {
-    if (!isOpen) return;
+    if (!open) return;
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -128,13 +54,16 @@ export function FilePreviewModal({ open, file, onClose }) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [open, onClose]);
 
   /**
    * Trap focus inside modal while open
    */
   useEffect(() => {
-    if (!isOpen || !modalRef.current) return;
+    if (!open || !modalRef.current) return;
+
+    // Save the current focus for restoration on close
+    previousFocusRef.current = document.activeElement;
 
     // Focus the modal for keyboard handling
     modalRef.current.focus();
@@ -159,67 +88,29 @@ export function FilePreviewModal({ open, file, onClose }) {
 
     document.addEventListener('keydown', handleTab);
     return () => document.removeEventListener('keydown', handleTab);
-  }, [isOpen]);
+  }, [open]);
 
   /**
-   * Prevent body scroll while modal is open
+   * Prevent body scroll while modal is open; restore focus on close
    */
   useEffect(() => {
-    if (!isOpen) return;
+    if (!open) {
+      // Restore focus on close
+      if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
+        previousFocusRef.current.focus();
+      }
+      return;
+    }
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prevOverflow;
     };
-  }, [isOpen]);
-
-  /**
-   * Copy text content to clipboard
-   */
-  const handleCopy = useCallback(async () => {
-    if (!content || copyState === 'copying') return;
-
-    try {
-      setCopyState('copying');
-      await navigator.clipboard.writeText(content);
-      setCopyState('copied');
-      setTimeout(() => setCopyState('idle'), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-      setCopyState('error');
-      setTimeout(() => setCopyState('idle'), 2000);
-    }
-  }, [content, copyState]);
-
-  /**
-   * Handle download from preview
-   */
-  const handleDownload = useCallback(() => {
-    if (!file) return;
-    const url = `/api/files/${file.path}?action=download`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = file.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, [file]);
-
-  /**
-   * Handle image load to capture dimensions
-   */
-  const handleImageLoad = useCallback((e) => {
-    const img = e.target;
-    setImageDimensions({
-      width: img.naturalWidth,
-      height: img.naturalHeight,
-    });
-  }, []);
+  }, [open]);
 
   if (!open || !file) return null;
 
   const previewType = getPreviewType(file.extension);
-  const language = previewType === 'code' ? getLanguage(file.extension) : null;
 
   return (
     <div
@@ -247,143 +138,186 @@ export function FilePreviewModal({ open, file, onClose }) {
         )}
       >
         {/* Header */}
-        <div className={cx(
-          'flex items-center justify-between gap-3 px-5 py-3 border-b border-border-button-default',
-          'shrink-0'
-        )}>
-          <div className="flex items-center gap-3 min-w-0">
-            <h2 className="text-title-3-semibold text-text-primary truncate">
-              {file.name}
-            </h2>
-            {file.size != null && (
-              <span className="text-caption-1-regular text-text-secondary shrink-0">
-                {formatFileSize(file.size)}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Copy button (text/code only) */}
-            {(previewType === 'text' || previewType === 'code') && (
-              <Button
-                variant="ghost"
-                size="small"
-                iconOnly
-                leadingIcon={copyState === 'copied' ? RiCheckLine : RiFileCopyLine}
-                aria-label={copyState === 'copied' ? 'Copied' : 'Copy to clipboard'}
-                onClick={handleCopy}
-                disabled={copyState === 'copying'}
-              />
-            )}
-
-            {/* Zoom controls (image only) */}
-            {previewType === 'image' && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="small"
-                  iconOnly
-                  leadingIcon={RiZoomOutLine}
-                  aria-label="Zoom out"
-                  onClick={() => setZoom((z) => Math.max(0.1, z - 0.25))}
-                />
-                <span className="text-caption-1-regular text-text-secondary min-w-[3rem] text-center">
-                  {Math.round(zoom * 100)}%
-                </span>
-                <Button
-                  variant="ghost"
-                  size="small"
-                  iconOnly
-                  leadingIcon={RiZoomInLine}
-                  aria-label="Zoom in"
-                  onClick={() => setZoom((z) => Math.min(5, z + 0.25))}
-                />
-              </>
-            )}
-
-            {/* Download */}
-            <Button
-              variant="ghost"
-              size="small"
-              iconOnly
-              leadingIcon={RiDownloadLine}
-              aria-label="Download file"
-              onClick={handleDownload}
-            />
-
-            {/* Close */}
-            <Button
-              variant="ghost"
-              size="small"
-              iconOnly
-              leadingIcon={RiCloseLine}
-              aria-label="Close preview"
-              onClick={onClose}
-            />
-          </div>
-        </div>
+        <PreviewHeader
+          file={file}
+          previewType={previewType}
+          zoom={zoom}
+          onZoomChange={setZoom}
+          onClose={onClose}
+        />
 
         {/* Content area */}
         <div className="flex-1 min-h-0 overflow-auto">
-          {loading && (
-            <div className="flex items-center justify-center h-64">
-              <p className="text-body-regular text-text-secondary">Loading preview...</p>
-            </div>
-          )}
-
-          {!loading && error && (
-            <div className="flex items-center justify-center h-64">
-              <p className="text-body-regular text-error-600">{error}</p>
-            </div>
-          )}
-
-          {!loading && !error && previewType === 'image' && (
-            <ImagePreview
-              file={file}
-              zoom={zoom}
-              dimensions={imageDimensions}
-              onLoad={handleImageLoad}
-            />
-          )}
-
-          {!loading && !error && previewType === 'pdf' && (
-            <PdfPreview file={file} />
-          )}
-
-          {!loading && !error && (previewType === 'text' || previewType === 'code') && (
-            <TextPreview
-              content={content}
-              language={language}
-              highlight={previewType === 'code'}
-            />
-          )}
-
-          {!loading && !error && previewType === null && (
-            <div className="flex items-center justify-center h-64">
-              <p className="text-body-regular text-text-secondary">
-                No preview available for this file type.
-              </p>
-            </div>
-          )}
+          {/* Key forces fresh state on file change */}
+          <PreviewContent
+            key={file.path}
+            file={file}
+            previewType={previewType}
+            zoom={zoom}
+          />
         </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* Footer with image metadata */}
-        {previewType === 'image' && imageDimensions && (
-          <div className={cx(
-            'flex items-center justify-between px-5 py-2 border-t border-border-button-default',
-            'shrink-0'
-          )}>
-            <span className="text-caption-1-regular text-text-secondary">
-              {imageDimensions.width} × {imageDimensions.height} px
-            </span>
-            {file.size != null && (
-              <span className="text-caption-1-regular text-text-secondary">
-                {formatFileSize(file.size)}
-              </span>
-            )}
-          </div>
+/**
+ * Preview header with filename, metadata, and action buttons
+ *
+ * @param {Object} props
+ * @param {Object} props.file - File metadata
+ * @param {string|null} props.previewType - Preview type
+ * @param {number} props.zoom - Current zoom level (for images)
+ * @param {(zoom: number) => void} props.onZoomChange - Zoom change callback
+ * @param {() => void} props.onClose - Close callback
+ */
+function PreviewHeader({ file, previewType, zoom, onZoomChange, onClose }) {
+  const [copyState, setCopyState] = useState('idle'); // idle | copying | copied | error
+
+  /**
+   * Get the text content from the preview content area for copying
+   */
+  const handleCopy = useCallback(async () => {
+    if (copyState === 'copying') return;
+
+    try {
+      setCopyState('copying');
+      // Read content from the <code> element in the preview
+      const codeEl = document.querySelector('[data-preview-content] code');
+      const text = codeEl?.textContent ?? '';
+      await navigator.clipboard.writeText(text);
+      setCopyState('copied');
+      setTimeout(() => setCopyState('idle'), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      setCopyState('error');
+      setTimeout(() => setCopyState('idle'), 2000);
+    }
+  }, [copyState]);
+
+  /**
+   * Handle download from preview
+   */
+  const handleDownload = useCallback(() => {
+    const url = `/api/files/${file.path}?action=download`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [file]);
+
+  return (
+    <div className={cx(
+      'flex items-center justify-between gap-3 px-5 py-3 border-b border-border-button-default',
+      'shrink-0'
+    )}>
+      <div className="flex items-center gap-3 min-w-0">
+        <h2 className="text-title-3-semibold text-text-primary truncate">
+          {file.name}
+        </h2>
+        {file.size != null && (
+          <span className="text-caption-1-regular text-text-secondary shrink-0">
+            {formatFileSize(file.size)}
+          </span>
         )}
       </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Copy button (text/code only) */}
+        {(previewType === 'text' || previewType === 'code') && (
+          <Button
+            variant="ghost"
+            size="small"
+            iconOnly
+            leadingIcon={copyState === 'copied' ? RiCheckLine : RiFileCopyLine}
+            aria-label={copyState === 'copied' ? 'Copied' : 'Copy to clipboard'}
+            onClick={handleCopy}
+            disabled={copyState === 'copying'}
+          />
+        )}
+
+        {/* Zoom controls (image only) */}
+        {previewType === 'image' && (
+          <>
+            <Button
+              variant="ghost"
+              size="small"
+              iconOnly
+              leadingIcon={RiZoomOutLine}
+              aria-label="Zoom out"
+              onClick={() => onZoomChange(Math.max(0.1, zoom - 0.25))}
+            />
+            <span className="text-caption-1-regular text-text-secondary min-w-[3rem] text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+            <Button
+              variant="ghost"
+              size="small"
+              iconOnly
+              leadingIcon={RiZoomInLine}
+              aria-label="Zoom in"
+              onClick={() => onZoomChange(Math.min(5, zoom + 0.25))}
+            />
+          </>
+        )}
+
+        {/* Download */}
+        <Button
+          variant="ghost"
+          size="small"
+          iconOnly
+          leadingIcon={RiDownloadLine}
+          aria-label="Download file"
+          onClick={handleDownload}
+        />
+
+        {/* Close */}
+        <Button
+          variant="ghost"
+          size="small"
+          iconOnly
+          leadingIcon={RiCloseLine}
+          aria-label="Close preview"
+          onClick={onClose}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Preview content area — dispatches to the appropriate preview renderer.
+ * Remounts on file change via key prop, so loading/error/content state
+ * is always fresh.
+ *
+ * @param {Object} props
+ * @param {Object} props.file - File metadata
+ * @param {string|null} props.previewType - Preview type
+ * @param {number} props.zoom - Current zoom level (for images)
+ */
+function PreviewContent({ file, previewType, zoom }) {
+  if (previewType === 'image') {
+    return <ImagePreview file={file} zoom={zoom} />;
+  }
+  if (previewType === 'pdf') {
+    return <PdfPreview file={file} />;
+  }
+  if (previewType === 'text' || previewType === 'code') {
+    return (
+      <TextPreview
+        file={file}
+        language={previewType === 'code' ? getLanguage(file.extension) : null}
+        highlight={previewType === 'code'}
+      />
+    );
+  }
+  return (
+    <div className="flex items-center justify-center h-64">
+      <p className="text-body-regular text-text-secondary">
+        No preview available for this file type.
+      </p>
     </div>
   );
 }
@@ -393,23 +327,52 @@ export function FilePreviewModal({ open, file, onClose }) {
  *
  * @param {Object} props
  * @param {Object} props.file - File metadata
- * @param {number} props.zoom - Current zoom level (1 = 100%)
- * @param {{ width: number, height: number } | null} props.dimensions - Image dimensions
- * @param {(e: React.SyntheticEvent<HTMLImageElement>) => void} props.onLoad - Image load handler
+ * @param {number} props.zoom - Current zoom level
  */
-function ImagePreview({ file, zoom, dimensions, onLoad }) {
+function ImagePreview({ file, zoom }) {
+  const [dimensions, setDimensions] = useState(null);
+  const [error, setError] = useState(false);
   const src = `/api/files/${file.path}?action=download`;
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-body-regular text-error-600">Failed to load image</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-center min-h-64 p-4">
-      <img
-        src={src}
-        alt={file.name}
-        onLoad={onLoad}
-        className="max-w-full object-contain transition-transform duration-150"
-        style={{ transform: `scale(${zoom})` }}
-        draggable={false}
-      />
+    <div>
+      <div className="flex items-center justify-center min-h-64 p-4">
+        <img
+          src={src}
+          alt={file.name}
+          onLoad={(e) => setDimensions({
+            width: e.target.naturalWidth,
+            height: e.target.naturalHeight,
+          })}
+          onError={() => setError(true)}
+          className="max-w-full object-contain transition-transform duration-150"
+          style={{ transform: `scale(${zoom})` }}
+          draggable={false}
+        />
+      </div>
+      {dimensions && (
+        <div className={cx(
+          'flex items-center justify-between px-5 py-2 border-t border-border-button-default',
+          'shrink-0'
+        )}>
+          <span className="text-caption-1-regular text-text-secondary">
+            {dimensions.width} × {dimensions.height} px
+          </span>
+          {file.size != null && (
+            <span className="text-caption-1-regular text-text-secondary">
+              {formatFileSize(file.size)}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -421,7 +384,33 @@ function ImagePreview({ file, zoom, dimensions, onLoad }) {
  * @param {Object} props.file - File metadata
  */
 function PdfPreview({ file }) {
+  const [error, setError] = useState(false);
   const src = `/api/files/${file.path}?action=download`;
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-body-regular text-error-600">
+          Unable to display PDF in browser.
+        </p>
+        <Button
+          variant="secondary"
+          size="medium"
+          leadingIcon={RiDownloadLine}
+          onClick={() => {
+            const link = document.createElement('a');
+            link.href = src;
+            link.download = file.name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }}
+        >
+          Download PDF
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[70vh]">
@@ -429,20 +418,75 @@ function PdfPreview({ file }) {
         src={src}
         title={`PDF preview: ${file.name}`}
         className="w-full h-full border-0"
+        onError={() => setError(true)}
       />
     </div>
   );
 }
 
 /**
- * Text/code preview renderer with line numbers and basic syntax highlighting
+ * Text/code preview renderer with line numbers and basic syntax highlighting.
+ * Manages its own loading/error/content state — remounts cleanly on file change.
  *
  * @param {Object} props
- * @param {string} props.content - File content
+ * @param {Object} props.file - File metadata
  * @param {string|null} props.language - Language identifier
  * @param {boolean} props.highlight - Whether to apply syntax highlighting
  */
-function TextPreview({ content, language, highlight }) {
+function TextPreview({ file, language, highlight }) {
+  const [content, setContent] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await fetch(`/api/files/${file.path}?action=read`);
+        if (!response.ok) {
+          throw new Error('Failed to load file content');
+        }
+
+        const data = await response.json();
+        if (!cancelled) {
+          setContent(data.data?.content ?? '');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Error loading file content:', err);
+          setError(err.message || 'Failed to load file');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [file.path]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-body-regular text-text-secondary">Loading preview...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-body-regular text-error-600">{error}</p>
+      </div>
+    );
+  }
+
   const lines = content.split('\n');
   // Remove trailing empty line from split (common with files ending in newline)
   if (lines.length > 0 && lines[lines.length - 1] === '') {
@@ -450,7 +494,7 @@ function TextPreview({ content, language, highlight }) {
   }
 
   return (
-    <div className="flex min-h-64 font-mono">
+    <div className="flex min-h-64 font-mono" data-preview-content>
       {/* Line numbers gutter */}
       <div
         className={cx(
