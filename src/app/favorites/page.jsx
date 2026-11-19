@@ -1,8 +1,7 @@
-import { redirect } from "next/navigation";
-
 /**
- * Legacy /favorites page — redirects to workspace.
+ * Legacy /favorites page — redirects to /workspace via next.config.js.
+ * This component is a fallback that should never render in practice.
  */
 export default function FavoritesPage() {
-  redirect("/workspace#/favorites");
+  return null;
 }
