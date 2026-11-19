@@ -276,7 +276,7 @@ export function FileList({
             // Wrap in ContextMenuTrigger if renderContextMenu is provided
             if (renderContextMenu) {
               return (
-                <ContextMenuTrigger key={file.path}>
+                <ContextMenuTrigger key={file.path} asChild>
                   {row}
                   {renderContextMenu(file)}
                 </ContextMenuTrigger>

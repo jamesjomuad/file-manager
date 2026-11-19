@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
+import { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Header as AriaHeader,
@@ -66,8 +66,9 @@ function menuOf(target) {
  * @param {boolean} [props.isDisabled]
  * @param {(isOpen: boolean) => void} [props.onOpenChange]
  * @param {string} [props.className]
+ * @param {boolean} [props.asChild] - When true, clones props onto first child instead of rendering a wrapper div
  */
-export function ContextMenuTrigger({ children, isDisabled = false, onOpenChange, className }) {
+export function ContextMenuTrigger({ children, isDisabled = false, onOpenChange, className, asChild = false }) {
   const id = useId();
   const direction = useDirection();
   const anchorRef = useRef(null);
@@ -171,6 +172,64 @@ export function ContextMenuTrigger({ children, isDisabled = false, onOpenChange,
   };
 
   const content = typeof children === "function" ? children({ isOpen }) : children;
+
+  // When asChild is true, clone the first child element with trigger props,
+  // and render remaining children (like ContextMenu) as siblings
+  if (asChild) {
+    const childArray = Array.isArray(content) ? content : [content];
+    const [firstChild, ...rest] = childArray.filter(c => c != null && c !== false);
+    
+    if (isValidElement(firstChild)) {
+      const childProps = firstChild.props;
+      const mergedProps = {
+        ...childProps,
+        className: cx(childProps.className, "[-webkit-touch-callout:none]"),
+        "data-open": isOpen || undefined,
+        onContextMenu: (event) => {
+          childProps.onContextMenu?.(event);
+          onContextMenu(event);
+        },
+        onKeyDown: (event) => {
+          childProps.onKeyDown?.(event);
+          onKeyDown(event);
+        },
+        onPointerDown: (event) => {
+          childProps.onPointerDown?.(event);
+          onPointerDown(event);
+        },
+        onPointerMove: (event) => {
+          childProps.onPointerMove?.(event);
+          onPointerMove(event);
+        },
+        onPointerUp: (event) => {
+          childProps.onPointerUp?.(event);
+          cancelPress();
+        },
+        onPointerCancel: (event) => {
+          childProps.onPointerCancel?.(event);
+          cancelPress();
+        },
+      };
+
+      return (
+        <TriggerContext.Provider value={{ id, isOpen, openCount, anchorRef, autoFocus, close }}>
+          {cloneElement(firstChild, mergedProps)}
+          {rest}
+          {point
+            ? createPortal(
+                <div
+                  ref={anchorRef}
+                  aria-hidden
+                  className="pointer-events-none fixed size-px"
+                  style={{ left: point.x, top: point.y }}
+                />,
+                document.body,
+              )
+            : null}
+        </TriggerContext.Provider>
+      );
+    }
+  }
 
   return (
     <TriggerContext.Provider value={{ id, isOpen, openCount, anchorRef, autoFocus, close }}>
