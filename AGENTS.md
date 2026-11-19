@@ -118,13 +118,16 @@ BoardUI is completely integrated with:
 - Shadows: `shadow-sm`, `shadow-md`, `shadow-lg`, `shadow-card`, `shadow-sidebar`
 - Spacing: Tailwind scale (`gap-2`, `p-4`, `m-6`)
 
-**Components:**
-- Buttons (primary, secondary, ghost, danger)
-- Inputs (text, select, checkbox, radio, switch)
-- Dropdowns and menus
-- Date pickers
-- Tables
-- Cards and panels
+**Installed Components:**
+- Buttons (`button.tsx`, `button.jsx`, `button-group.jsx`, `close-button.tsx`)
+- Inputs (`input.jsx`, `label.jsx`, `hint-text.jsx`)
+- Selects (`select.jsx`)
+- Context menus (`context-menu.jsx`)
+- Date pickers (`date-picker.jsx`, `shared.jsx`)
+- Dropdowns and menus (`menu-styles.js`)
+- Notifications (`notification.tsx`)
+- Toast (`toast.tsx`)
+- Avatars (`avatar.tsx`)
 
 **Key Rules:**
 1. **Use semantic tokens only** - never raw palette classes (`text-gray-500`, `bg-white`)
@@ -143,6 +146,83 @@ BoardUI is completely integrated with:
 - See `src/styles/typography.css` for type ramp
 - See `src/styles/globals.css` for global styles
 - See `AGENTS.md` in root for BoardUI design rules
+- **Official documentation:** https://www.boardui.com/components
+
+### Mandatory BoardUI Component Usage
+
+**These rules are mandatory for all UI implementation in this project.**
+
+1. **Always use BoardUI components when implementing, modifying, or refactoring application UI.**
+
+2. **Before creating a custom UI component, inspect the existing components in `src/components/base/` and check the official BoardUI documentation.**
+
+3. **Prefer existing BoardUI components for:**
+   - Buttons and icon buttons
+   - Inputs, text fields, textareas, and search fields
+   - Selects, checkboxes, radio buttons, and switches
+   - Dialogs, modals, and drawers
+   - Dropdowns, menus, and context menus
+   - Tooltips and popovers
+   - Tabs and navigation elements
+   - Tables and data display
+   - Cards, panels, and containers
+   - Alerts, notifications, and feedback (Toast, Notification)
+   - File uploads and other interactive controls
+
+4. **Do not recreate a component that BoardUI already provides.**
+
+5. **Do not introduce another UI component library without explicit approval.**
+
+6. **Custom React components are allowed for application-specific composition and behavior.** However, their underlying UI controls should use BoardUI wherever suitable.
+
+7. **If BoardUI does not provide an appropriate component, implement the smallest compatible custom solution and document why it is necessary.**
+
+### Documentation and API Verification
+
+**Before using any BoardUI component:**
+
+1. **Check the official documentation:** https://www.boardui.com/components
+2. **Verify the installed BoardUI version** in `package.json`
+3. **Inspect the actual component API, props, variants, and usage examples** in `src/components/base/`
+4. **Never assume component names, props, or APIs based on memory or another library**
+5. **Follow the installed version rather than copying examples that may be incompatible**
+
+### Styling Requirements
+
+**Mandatory styling practices:**
+
+- **Use BoardUI semantic design tokens exclusively**
+- **Follow the existing typography, spacing, colors, borders, radii, and shadows**
+- **Use the `cx()` utility from `@/utils/cx` for class merging**
+- **Preserve light and dark theme compatibility**
+- **Avoid raw palette colors and arbitrary styling when an existing semantic token is available**
+- **Maintain keyboard accessibility, focus states, and responsive behavior**
+
+**Never use:**
+- Raw color classes: `text-gray-500`, `bg-white`, `bg-blue-600`
+- Hardcoded font sizes: `text-sm`, `text-base` (use composite typography tokens)
+- Inline styles for colors, spacing, or typography
+
+**Always use:**
+- Semantic tokens: `text-text-primary`, `bg-background-primary-default`, `border-border-button-default`
+- Composite typography: `text-title-1-medium`, `text-body-regular`, `text-caption-1-semibold`
+- Shadow tokens: `shadow-sm`, `shadow-md`, `shadow-lg`, `shadow-card`, `shadow-sidebar`
+- `cx()` for conditional class merging
+
+### Required Workflow
+
+**Before implementing UI changes:**
+
+1. **Inspect existing reusable components** in `src/components/base/`
+2. **Consult the BoardUI documentation** at https://www.boardui.com/components
+3. **Identify suitable existing components** that match your requirements
+4. **Implement using BoardUI components** with semantic tokens
+5. **Verify visual consistency in light and dark modes**
+6. **Test interactions and accessibility** (keyboard navigation, focus states, ARIA labels)
+
+**These rules apply to the entire application**, including the file explorer, file context menus, editor, image previewer, archive manager, upload interface, settings, dialogs, and future features.
+
+**When working on UI in agent environments that support skills, load the BoardUI skill** for detailed implementation guidance.
 
 ## Filesystem Backend
 
