@@ -297,7 +297,7 @@ export function CodeEditor({
       {showLineNumbers && (
         <div
           ref={lineNumberRef}
-          className="flex flex-col bg-background-secondary-default border-r border-separator-border overflow-hidden select-none"
+          className="flex flex-col bg-background-secondary-default border-e border-separator-border overflow-hidden select-none"
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: '0.875rem',

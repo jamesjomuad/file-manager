@@ -1,5 +1,7 @@
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import "../styles/themes.css";
+import { ThemeProvider } from "@/contexts/theme-context";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -24,9 +26,34 @@ export default function RootLayout({ children }) {
     <html
       lang="en"
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Prevent FOUC: Apply theme from localStorage before paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('theme-id') || 'midnight-pro';
+                  var mode = localStorage.getItem('theme-mode') || 'system';
+                  var resolvedMode = mode;
+                  if (mode === 'system') {
+                    resolvedMode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                  }
+                  document.documentElement.setAttribute('data-theme', theme);
+                  document.documentElement.setAttribute('data-theme-mode', resolvedMode);
+                  if (resolvedMode === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="h-full flex flex-col bg-background-full">
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

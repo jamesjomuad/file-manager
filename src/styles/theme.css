@@ -168,6 +168,8 @@
   --color-foreground-icon-quaternary:    var(--color-neutral-300);
   --color-foreground-icon-error:         var(--color-red-600);
   --color-foreground-icon-disabled:      var(--color-neutral-300);
+  --color-foreground-icon-accent:        var(--color-accent-500);
+  --color-foreground-icon-success:       var(--color-lime-600);
   --color-foreground-disabled:           var(--color-neutral-400);
   --color-foreground-disabled-danger:    var(--color-red-300);
   --color-input-disabled-foreground:     var(--color-neutral-300);
@@ -226,6 +228,28 @@
   --color-file-upload-icon-background:   var(--color-neutral-300);
   --color-file-upload-icon-foreground:   var(--color-neutral-400);
   --color-file-upload-icon-foreground-hover: var(--color-neutral-500);
+
+  /* Selection — file rows, grid cards, and other interactive selections */
+  --color-background-selection:          var(--color-accent-50);
+  --color-background-selection-strong:   var(--color-accent-100);
+
+  /* Overlay — modal and dialog backdrops */
+  --color-background-overlay:            var(--color-neutral-950);
+
+  /* Error/warning banner surfaces (inline alerts, upload errors, etc.) */
+  --color-background-error-subtle:       var(--color-red-50);
+  --color-background-warning-subtle:     var(--color-amber-50);
+  --color-border-error-subtle:           var(--color-red-200);
+  --color-border-warning-subtle:         var(--color-amber-200);
+  --color-text-error-secondary:          var(--color-red-600);
+  --color-text-warning-secondary:        var(--color-amber-700);
+
+  /* Syntax highlighting — code preview and editor tokens */
+  --color-syntax-keyword:                var(--color-accent-600);
+  --color-syntax-string:                 var(--color-lime-700);
+  --color-syntax-number:                 var(--color-orange-600);
+  --color-syntax-comment:                var(--color-text-tertiary);
+  --color-syntax-tag:                    var(--color-accent-600);
 
   /* Border */
   --color-border-button-default:   var(--color-neutral-200);
@@ -433,6 +457,8 @@
   --color-foreground-icon-tertiary:   var(--color-neutral-600);
   --color-foreground-icon-quaternary: var(--color-neutral-700);
   --color-foreground-icon-disabled:   var(--color-neutral-800);
+  --color-foreground-icon-accent:     var(--color-accent-400);
+  --color-foreground-icon-success:    var(--color-lime-400);
   --color-foreground-disabled:        var(--color-neutral-700);
   --color-foreground-disabled-danger: var(--color-red-400);
   --color-input-disabled-foreground:  var(--color-neutral-600);
@@ -483,6 +509,29 @@
   --color-file-upload-icon-background:  var(--color-neutral-600);
   --color-file-upload-icon-foreground:  var(--color-neutral-400);
   --color-file-upload-icon-foreground-hover: var(--color-neutral-300);
+
+  /* Selection */
+  --color-background-selection:          color-mix(in srgb, var(--color-accent-950) 60%, transparent);
+  --color-background-selection-strong:   color-mix(in srgb, var(--color-accent-900) 60%, transparent);
+
+  /* Overlay */
+  --color-background-overlay:            var(--color-black);
+
+  /* Error/warning banners */
+  --color-background-error-subtle:       color-mix(in srgb, var(--color-red-950) 60%, transparent);
+  --color-background-warning-subtle:     color-mix(in srgb, var(--color-amber-950) 60%, transparent);
+  --color-border-error-subtle:           var(--color-red-800);
+  --color-border-warning-subtle:         var(--color-amber-800);
+  --color-text-error-secondary:          var(--color-red-400);
+  --color-text-warning-secondary:        var(--color-amber-300);
+
+  /* Syntax highlighting */
+  --color-syntax-keyword:                var(--color-accent-400);
+  --color-syntax-string:                 var(--color-lime-400);
+  --color-syntax-number:                 var(--color-orange-400);
+  --color-syntax-comment:                var(--color-text-tertiary);
+  --color-syntax-tag:                    var(--color-accent-400);
+
   --color-stat-card-icon-background:    var(--color-neutral-800);
   --color-segmented-control-background:          var(--color-neutral-925);
   --color-segmented-control-selected-background: var(--color-neutral-800);
@@ -655,6 +704,8 @@
   --color-foreground-icon-quaternary: var(--color-foreground-icon-quaternary);
   --color-foreground-icon-error:      var(--color-foreground-icon-error);
   --color-foreground-icon-disabled:   var(--color-foreground-icon-disabled);
+  --color-foreground-icon-accent:     var(--color-foreground-icon-accent);
+  --color-foreground-icon-success:    var(--color-foreground-icon-success);
   --color-foreground-disabled:        var(--color-foreground-disabled);
   --color-foreground-disabled-danger: var(--color-foreground-disabled-danger);
   --color-input-disabled-foreground:  var(--color-input-disabled-foreground);
@@ -702,6 +753,28 @@
   --color-file-upload-icon-background:   var(--color-file-upload-icon-background);
   --color-file-upload-icon-foreground:   var(--color-file-upload-icon-foreground);
   --color-file-upload-icon-foreground-hover: var(--color-file-upload-icon-foreground-hover);
+
+  /* Selection */
+  --color-background-selection:          var(--color-background-selection);
+  --color-background-selection-strong:   var(--color-background-selection-strong);
+
+  /* Overlay */
+  --color-background-overlay:            var(--color-background-overlay);
+
+  /* Error/warning banners */
+  --color-background-error-subtle:       var(--color-background-error-subtle);
+  --color-background-warning-subtle:     var(--color-background-warning-subtle);
+  --color-border-error-subtle:           var(--color-border-error-subtle);
+  --color-border-warning-subtle:         var(--color-border-warning-subtle);
+  --color-text-error-secondary:          var(--color-text-error-secondary);
+  --color-text-warning-secondary:        var(--color-text-warning-secondary);
+
+  /* Syntax highlighting */
+  --color-syntax-keyword:                var(--color-syntax-keyword);
+  --color-syntax-string:                 var(--color-syntax-string);
+  --color-syntax-number:                 var(--color-syntax-number);
+  --color-syntax-comment:                var(--color-syntax-comment);
+  --color-syntax-tag:                    var(--color-syntax-tag);
 
   --color-border-button-default:   var(--color-border-button-default);
   --color-border-button-hover:     var(--color-border-button-hover);

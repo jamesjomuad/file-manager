@@ -212,7 +212,7 @@ export function FileList({
                 className={cx(
                   "border-b border-separator-border cursor-pointer transition-colors",
                   "hover:bg-background-secondary-hover",
-                  isSelected && "bg-accent-50 dark:bg-accent-950"
+                  isSelected && "bg-background-selection"
                 )}
               >
                 {/* Name */}

@@ -121,7 +121,7 @@ export function FilePreviewModal({ open, file, onClose }) {
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-background-full/50"
+        className="absolute inset-0 bg-background-overlay/80"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -337,7 +337,7 @@ function ImagePreview({ file, zoom }) {
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-body-regular text-error-600">Failed to load image</p>
+        <p className="text-body-regular text-text-error-primary">Failed to load image</p>
       </div>
     );
   }
@@ -390,7 +390,7 @@ function PdfPreview({ file }) {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <p className="text-body-regular text-error-600">
+        <p className="text-body-regular text-text-error-primary">
           Unable to display PDF in browser.
         </p>
         <Button
@@ -482,7 +482,7 @@ function TextPreview({ file, language, highlight }) {
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-body-regular text-error-600">{error}</p>
+        <p className="text-body-regular text-text-error-primary">{error}</p>
       </div>
     );
   }
@@ -571,7 +571,7 @@ function highlightLine(line, language) {
       const stringMatch = remaining.match(/^("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/);
       if (stringMatch) {
         tokens.push(
-          <span key={key++} className="text-text-success-primary">
+          <span key={key++} className="text-syntax-string">
             {stringMatch[0]}
           </span>
         );
@@ -585,7 +585,7 @@ function highlightLine(line, language) {
       const numMatch = remaining.match(/^-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/);
       if (numMatch) {
         tokens.push(
-          <span key={key++} className="text-text-warning-primary">
+          <span key={key++} className="text-syntax-number">
             {numMatch[0]}
           </span>
         );
@@ -600,7 +600,7 @@ function highlightLine(line, language) {
       const wordMatch = remaining.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*/);
       if (wordMatch && keywordSet.has(wordMatch[0])) {
         tokens.push(
-          <span key={key++} className="text-text-brand-primary font-medium">
+          <span key={key++} className="text-syntax-keyword font-medium">
             {wordMatch[0]}
           </span>
         );
@@ -614,7 +614,7 @@ function highlightLine(line, language) {
       const tagMatch = remaining.match(/^<\/?[a-zA-Z][a-zA-Z0-9-]*/);
       if (tagMatch) {
         tokens.push(
-          <span key={key++} className="text-text-brand-primary">
+          <span key={key++} className="text-syntax-tag">
             {tagMatch[0]}
           </span>
         );

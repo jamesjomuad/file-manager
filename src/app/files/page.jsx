@@ -669,8 +669,8 @@ export default function FilesPage() {
         />
 
         {uploadError && (
-          <div className="mx-4 mt-4 p-3 rounded-lg bg-error-50 border border-error-200 dark:bg-error-950 dark:border-error-800">
-            <p className="text-body-regular text-error-600 dark:text-error-400">
+          <div className="mx-4 mt-4 p-3 rounded-lg bg-background-error-subtle border border-border-error-subtle">
+            <p className="text-body-regular text-text-error-secondary">
               {uploadError}
             </p>
           </div>

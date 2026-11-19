@@ -30,7 +30,7 @@ export function ConfirmDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-background-full/50"
+        className="absolute inset-0 bg-background-overlay/80"
         onClick={onCancel}
       />
 

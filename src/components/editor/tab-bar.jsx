@@ -147,7 +147,7 @@ export function TabBar({ tabs, activeIndex, onSwitchTab, onCloseTab, onCloseOthe
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-50 bg-background-primary-default border border-separator-border rounded-lg shadow-lg py-1 min-w-[160px]"
+          className="fixed z-50 bg-background-primary-default border border-border-button-default rounded-lg shadow-lg py-1 min-w-[160px]"
           style={{
             left: contextMenu.x,
             top: contextMenu.y,

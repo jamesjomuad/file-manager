@@ -371,7 +371,7 @@ export default function TrashPage() {
                       className={cx(
                         "border-b border-separator-border cursor-pointer transition-colors",
                         "hover:bg-background-secondary-hover",
-                        isSelected && "bg-accent-50 dark:bg-accent-950"
+                        isSelected && "bg-background-selection"
                       )}
                     >
                       {/* Name */}
@@ -455,7 +455,7 @@ export default function TrashPage() {
                     className={cx(
                       "rounded-xl p-3 flex flex-col items-center gap-2 cursor-pointer transition-colors",
                       "hover:bg-background-secondary-hover",
-                      isSelected && "ring-2 ring-accent-500 bg-accent-50 dark:bg-accent-950"
+                      isSelected && "ring-2 ring-accent-500 bg-background-selection"
                     )}
                   >
                     <FileIcon

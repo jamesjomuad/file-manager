@@ -118,7 +118,7 @@ export default function FavoritesPage() {
         <div className="flex-1" />
 
         {hasMissing && (
-          <span className="text-caption-1-medium text-warning-600 dark:text-warning-400">
+          <span className="text-caption-1-medium text-text-warning-secondary">
             {missingPaths.size} missing file{missingPaths.size === 1 ? "" : "s"}
           </span>
         )}
@@ -174,8 +174,8 @@ export default function FavoritesPage() {
           <>
             {/* Missing paths warning */}
             {hasMissing && (
-              <div className="mx-4 mt-4 p-3 rounded-lg bg-warning-50 border border-warning-200 dark:bg-warning-950 dark:border-warning-800">
-                <p className="text-body-regular text-warning-700 dark:text-warning-300 mb-2">
+              <div className="mx-4 mt-4 p-3 rounded-lg bg-background-warning-subtle border border-border-warning-subtle">
+                <p className="text-body-regular text-text-warning-secondary mb-2">
                   {missingPaths.size} favorited file{missingPaths.size === 1 ? " no longer exists" : "s no longer exist"} and will be removed:
                 </p>
                 <div className="flex flex-wrap gap-2">
