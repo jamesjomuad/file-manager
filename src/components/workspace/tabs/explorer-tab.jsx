@@ -38,6 +38,10 @@ import {
 } from "@remixicon/react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { toast } from "@/components/base/toast/toast";
+import { useUploadStore } from "@/stores/upload-store";
+import { ConflictDialog } from "@/components/upload/conflict-dialog";
+import { UploadQueue } from "@/components/upload/upload-queue";
+import { formatFileSize } from "@/components/upload/upload-zone";
 
 /**
  * Join rootPath and relative path using the separator detected from rootPath.
@@ -108,9 +112,16 @@ export function ExplorerTabContent({ tab }) {
   const [extractDialog, setExtractDialog] = useState(null);
 
   // Upload state
-  const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  
+  // Conflict dialog state
+  const [conflictDialog, setConflictDialog] = useState({
+    open: false,
+    conflicts: [],
+    pendingFiles: [],
+    resolutions: new Map(),
+  });
 
   // Preview modal state
   const [previewFile, setPreviewFile] = useState(null);
@@ -454,44 +465,190 @@ export function ExplorerTabContent({ tab }) {
   }, [currentPath, fetchFiles]);
 
   /**
-   * Handle file upload
+   * Perform the actual upload after conflict resolution
+   * @param {File[]} files - Files to upload
+   * @param {Map<string, string>} resolutions - Conflict resolutions (skip/replace/rename)
    */
-  const handleUpload = useCallback(async (files) => {
-    if (files.length === 0) return;
+  const performUpload = useCallback(async (files, resolutions) => {
+    const uploadItems = [];
+    let itemId = 0;
 
-    try {
-      setUploading(true);
-      setUploadError(null);
-
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append("files", file);
-      });
-
-      if (currentPath) {
-        formData.append("path", currentPath);
+    // Build upload items array
+    for (const file of files) {
+      const action = resolutions.get(file.name);
+      
+      if (action === 'skip') {
+        // Skip this file
+        continue;
       }
 
-      const response = await fetch("/api/files/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Upload failed");
+      let uploadName = file.name;
+      if (action === 'rename') {
+        const timestamp = Date.now();
+        const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+        const baseName = file.name.includes('.') ? file.name.slice(0, file.name.lastIndexOf('.')) : file.name;
+        uploadName = `${baseName}_${timestamp}${ext}`;
       }
 
-      // Refresh the file list
-      fetchFiles();
-      setDragActive(false);
-    } catch (error) {
-      console.error("Error uploading files:", error);
-      setUploadError(error.message);
-    } finally {
-      setUploading(false);
+      uploadItems.push({
+        id: `upload-${Date.now()}-${itemId++}`,
+        filename: uploadName,
+        size: file.size,
+        progress: 0,
+        status: 'pending',
+        file,
+      });
+    }
+
+    if (uploadItems.length === 0) {
+      toast.info('No files to upload');
+      return;
+    }
+
+    // Add to store
+    useUploadStore.getState().addFiles(uploadItems.map(item => ({
+      id: item.id,
+      filename: item.filename,
+      size: item.size,
+      progress: 0,
+      status: 'pending',
+    })));
+
+    // Upload each file sequentially
+    for (const item of uploadItems) {
+      try {
+        useUploadStore.getState().setStatus(item.id, 'uploading');
+
+        const formData = new FormData();
+        formData.append('file', item.file);
+        formData.append('path', currentPath || '');
+        if (item.filename !== item.file.name) {
+          formData.append('overrideName', item.filename);
+        }
+
+        // Use XHR for progress tracking
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded / event.total) * 100);
+              useUploadStore.getState().updateProgress(item.id, percent);
+            }
+          });
+
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              useUploadStore.getState().setStatus(item.id, 'complete');
+              resolve();
+            } else {
+              let errorMsg = 'Upload failed';
+              try {
+                const response = JSON.parse(xhr.responseText);
+                errorMsg = response.error || errorMsg;
+              } catch (e) {}
+              useUploadStore.getState().setStatus(item.id, 'error', errorMsg);
+              reject(new Error(errorMsg));
+            }
+          });
+
+          xhr.addEventListener('error', () => {
+            useUploadStore.getState().setStatus(item.id, 'error', 'Network error');
+            reject(new Error('Network error'));
+          });
+
+          xhr.open('POST', '/api/files/upload');
+          xhr.send(formData);
+        });
+      } catch (error) {
+        console.error(`Error uploading ${item.filename}:`, error);
+        // Error already set in store
+      }
+    }
+
+    // Refresh file list
+    fetchFiles();
+    setDragActive(false);
+    
+    // Show completion toast
+    const stats = useUploadStore.getState().getStats();
+    if (stats.complete > 0) {
+      toast.success(`Uploaded ${stats.complete} file${stats.complete !== 1 ? 's' : ''} successfully`);
     }
   }, [currentPath, fetchFiles]);
+
+  /**
+   * Handle file upload with conflict detection
+   * @param {File[]} files - Files to upload
+   */
+  const handleUpload = useCallback(async (files) => {
+    if (!files || files.length === 0) return;
+
+    try {
+      setUploadError(null);
+      
+      // Check for conflicts
+      const conflicts = [];
+      const clearFiles = [];
+
+      for (const file of files) {
+        const filePath = currentPath ? `${currentPath}/${file.name}` : file.name;
+        try {
+          const response = await fetch(`/api/files/${encodeURIComponent(filePath)}`);
+          if (response.ok) {
+            conflicts.push({ name: file.name, size: file.size, file });
+          } else {
+            clearFiles.push(file);
+          }
+        } catch (err) {
+          // If check fails, assume no conflict
+          clearFiles.push(file);
+        }
+      }
+
+      if (conflicts.length > 0) {
+        // Show conflict dialog
+        setConflictDialog({
+          open: true,
+          conflicts,
+          pendingFiles: clearFiles,
+          resolutions: new Map(),
+        });
+      } else {
+        // No conflicts, upload directly
+        await performUpload(files, new Map());
+      }
+    } catch (error) {
+      console.error("Error preparing upload:", error);
+      setUploadError(error.message);
+      toast.error(`Upload failed: ${error.message}`);
+    }
+  }, [currentPath, performUpload]);
+
+  /**
+   * Handle conflict resolution
+   * @param {Map<string, string>} resolutions - User's conflict resolutions
+   */
+  const handleConflictResolution = useCallback((resolutions) => {
+    const { conflicts, pendingFiles } = conflictDialog;
+    
+    // Combine conflict files with their resolutions and clear files
+    const allFiles = [
+      ...conflicts.map(c => c.file),
+      ...pendingFiles,
+    ];
+
+    // Perform upload with resolutions
+    performUpload(allFiles, resolutions);
+    
+    // Close dialog
+    setConflictDialog({
+      open: false,
+      conflicts: [],
+      pendingFiles: [],
+      resolutions: new Map(),
+    });
+  }, [conflictDialog, performUpload]);
 
   /**
    * Handle select all files
@@ -919,7 +1076,7 @@ export function ExplorerTabContent({ tab }) {
     <FileDropZone
       visible={dragActive}
       onDrop={handleUpload}
-      uploading={uploading}
+      uploading={false}
     >
       <div className="flex flex-col h-full">
         {/* Toolbar */}
@@ -932,7 +1089,7 @@ export function ExplorerTabContent({ tab }) {
           onCreateFolder={handleCreateFolder}
           onCreateFile={handleCreateFile}
           onUpload={handleUpload}
-          uploading={uploading}
+          uploading={false}
           searchQuery={searchQuery}
           onSearch={handleSearch}
           sortBy={sortBy}
@@ -1039,6 +1196,17 @@ export function ExplorerTabContent({ tab }) {
             handleRefresh();
           }}
         />
+
+        {/* Conflict dialog */}
+        <ConflictDialog
+          open={conflictDialog.open}
+          conflicts={conflictDialog.conflicts}
+          onResolve={handleConflictResolution}
+          onCancel={() => setConflictDialog({ open: false, conflicts: [], pendingFiles: [], resolutions: new Map() })}
+        />
+
+        {/* Upload queue */}
+        <UploadQueue />
       </div>
     </FileDropZone>
   );
