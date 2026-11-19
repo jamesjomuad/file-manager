@@ -1,4 +1,0 @@
-- Buy groceries
-- Finish project report
-- Call dentist
-- Review pull requests
