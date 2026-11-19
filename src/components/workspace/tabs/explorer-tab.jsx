@@ -561,8 +561,9 @@ export function ExplorerTabContent({ tab }) {
           xhr.send(formData);
         });
       } catch (error) {
-        console.error(`Error uploading ${item.filename}:`, error);
-        // Error already set in store
+        // Error already set in store - show toast notification
+        const errorMessage = error.message || 'Upload failed';
+        toast.error(`Failed to upload ${item.filename}: ${errorMessage}`);
       }
     }
 
