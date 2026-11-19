@@ -35,10 +35,9 @@ import {
   RiFileCopyLine,
   RiLink,
   RiFileTextLine,
-  RiCheckLine,
-  RiErrorWarningLine,
 } from "@remixicon/react";
 import { copyToClipboard } from "@/lib/clipboard";
+import { toast } from "@/components/base/toast/toast";
 
 /**
  * Join rootPath and relative path using the separator detected from rootPath.
@@ -118,27 +117,6 @@ export function ExplorerTabContent({ tab }) {
 
   // Root path from server (for absolute path copy)
   const rootPathRef = useRef("");
-
-  // Toast notification state
-  const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
-
-  /**
-   * Show a brief toast notification
-   * @param {{ message: string, type: 'success' | 'error' }} opts
-   */
-  const showToast = useCallback(({ message, type = "success" }) => {
-    setToast({ message, type });
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), 2000);
-  }, []);
-
-  // Cleanup toast timer on unmount
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
-  }, []);
 
   // Get the folder path from the URL splat parameter
   const routePath = decodeSplatPath(params["*"] || "");
@@ -613,13 +591,13 @@ export function ExplorerTabContent({ tab }) {
       const lines = targets.map((f) => toAbsolutePath(root, f.path));
       const text = lines.join("\n");
       const ok = await copyToClipboard(text);
-      showToast(
-        ok
-          ? { message: targets.length === 1 ? "Path copied" : `${targets.length} paths copied` }
-          : { message: "Failed to copy to clipboard", type: "error" },
-      );
+      if (ok) {
+        toast.success(targets.length === 1 ? "Path copied" : `${targets.length} paths copied`);
+      } else {
+        toast.error("Failed to copy to clipboard");
+      }
     },
-    [getTargetFiles, showToast],
+    [getTargetFiles],
   );
 
   /**
@@ -631,13 +609,13 @@ export function ExplorerTabContent({ tab }) {
       const lines = targets.map((f) => normalizeRelativePath(f.path));
       const text = lines.join("\n");
       const ok = await copyToClipboard(text);
-      showToast(
-        ok
-          ? { message: targets.length === 1 ? "Relative path copied" : `${targets.length} relative paths copied` }
-          : { message: "Failed to copy to clipboard", type: "error" },
-      );
+      if (ok) {
+        toast.success(targets.length === 1 ? "Relative path copied" : `${targets.length} relative paths copied`);
+      } else {
+        toast.error("Failed to copy to clipboard");
+      }
     },
-    [getTargetFiles, showToast],
+    [getTargetFiles],
   );
 
   /**
@@ -649,13 +627,13 @@ export function ExplorerTabContent({ tab }) {
       const lines = targets.map((f) => f.name);
       const text = lines.join("\n");
       const ok = await copyToClipboard(text);
-      showToast(
-        ok
-          ? { message: targets.length === 1 ? "Filename copied" : `${targets.length} filenames copied` }
-          : { message: "Failed to copy to clipboard", type: "error" },
-      );
+      if (ok) {
+        toast.success(targets.length === 1 ? "Filename copied" : `${targets.length} filenames copied`);
+      } else {
+        toast.error("Failed to copy to clipboard");
+      }
     },
-    [getTargetFiles, showToast],
+    [getTargetFiles],
   );
 
   /**
@@ -1043,29 +1021,6 @@ export function ExplorerTabContent({ tab }) {
             handleRefresh();
           }}
         />
-
-        {/* Toast notification */}
-        {toast && (
-          <div
-            className={cx(
-              "fixed bottom-4 left-1/2 -translate-x-1/2 z-50",
-              "flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg",
-              "text-body-regular transition-all",
-              toast.type === "error"
-                ? "bg-background-error text-text-primary border border-border-error"
-                : "bg-background-success text-text-primary border border-border-success",
-            )}
-            role="status"
-            aria-live="polite"
-          >
-            {toast.type === "error" ? (
-              <RiErrorWarningLine className="w-4 h-4" />
-            ) : (
-              <RiCheckLine className="w-4 h-4" />
-            )}
-            {toast.message}
-          </div>
-        )}
       </div>
     </FileDropZone>
   );

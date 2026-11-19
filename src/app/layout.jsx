@@ -2,6 +2,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/themes.css";
 import { StoreInitializer } from "@/components/store-initializer";
+import { Toaster } from "@/components/base/toast/toast";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -68,6 +69,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="h-full flex flex-col bg-background-full">
         <StoreInitializer />
+        <Toaster />
         {children}
       </body>
     </html>
