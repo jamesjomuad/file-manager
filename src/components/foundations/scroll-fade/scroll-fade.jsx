@@ -14,11 +14,6 @@ import { cx } from "@/utils/cx";
  *     <div onScroll={fade.onScroll} className="h-full overflow-y-auto">…</div>
  *     <ScrollFade progress={fade.progress} surfaceClassName="from-background-primary-default" />
  *   </div>
- *
- * Keep the header outside the scroll region, and the overlay outside the
- * scroller (it must stay put while the content moves under it). Opacity goes
- * on each layer, never on the wrapper: a translucent parent becomes the
- * backdrop root, and the blur layers would sample nothing.
  */
 
 /** Scroll distance, in px, over which the fade ramps from 0 to 1. */
@@ -34,6 +29,12 @@ export function useScrollFade(distance = SCROLL_FADE_DISTANCE) {
   return { progress, onScroll, reset };
 }
 
+/**
+ * @param {Object} props
+ * @param {number} props.progress - 0 at rest, 1 once scrolled SCROLL_FADE_DISTANCE
+ * @param {string} [props.surfaceClassName] - The `from-*` class of the surface
+ * @param {string} [props.className]
+ */
 export function ScrollFade({ progress, surfaceClassName = "from-background-primary-default", className }) {
   return (
     <div aria-hidden className={cx("pointer-events-none absolute inset-x-0 top-0 z-10 h-6", className)}>

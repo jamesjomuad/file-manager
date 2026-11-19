@@ -1,8 +1,7 @@
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/themes.css";
-import { ThemeProvider } from "@/contexts/theme-context";
-import { HashRouterProvider } from "@/contexts/hash-router-context";
+import { StoreInitializer } from "@/components/store-initializer";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -36,8 +35,22 @@ export default function RootLayout({ children }) {
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem('theme-id') || 'midnight-pro';
-                  var mode = localStorage.getItem('theme-mode') || 'system';
+                  // Try Zustand store format first
+                  var storeData = localStorage.getItem('fileManager.settings');
+                  var theme, mode, accent;
+                  if (storeData) {
+                    var parsed = JSON.parse(storeData);
+                    if (parsed.state) {
+                      theme = parsed.state.currentTheme || 'midnight-pro';
+                      mode = parsed.state.themeMode || 'system';
+                      accent = parsed.state.accentColor || null;
+                    }
+                  }
+                  // Fallback to old localStorage keys
+                  if (!theme) {
+                    theme = localStorage.getItem('theme-id') || 'midnight-pro';
+                    mode = localStorage.getItem('theme-mode') || 'system';
+                  }
                   var resolvedMode = mode;
                   if (mode === 'system') {
                     resolvedMode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -54,9 +67,8 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="h-full flex flex-col bg-background-full">
-        <HashRouterProvider>
-          <ThemeProvider>{children}</ThemeProvider>
-        </HashRouterProvider>
+        <StoreInitializer />
+        {children}
       </body>
     </html>
   );

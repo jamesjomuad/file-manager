@@ -3,8 +3,9 @@
 import { cx } from "@/utils/cx";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
-import { useHashRouterContext } from "@/contexts/hash-router-context";
-import { useState, useEffect } from "react";
+import { useTrashStore } from "@/stores/trash-store";
+import { NavLink } from "react-router-dom";
+import { useEffect } from "react";
 import {
   RiFolderLine,
   RiTimeLine,
@@ -29,40 +30,26 @@ function CountBadge({ count }) {
 
 /**
  * Sidebar navigation component.
- * Uses hash-based navigation for application routes.
+ * Uses React Router's NavLink for hash-based application routes.
  */
 export function Sidebar() {
-  const { route, navigate } = useHashRouterContext();
   const { favorites } = useFavorites();
   const { recentFiles } = useRecentFiles();
-  const [trashCount, setTrashCount] = useState(0);
+  const trashCount = useTrashStore((s) => s.count);
 
-  // Fetch trash count
+  // Periodically refresh trash count (backup for missed events)
   useEffect(() => {
-    const fetchTrashCount = async () => {
-      try {
-        const response = await fetch("/api/trash");
-        if (response.ok) {
-          const data = await response.json();
-          setTrashCount(data.data?.length || 0);
-        }
-      } catch (error) {
-        console.error("Error fetching trash count:", error);
-      }
-    };
-
-    fetchTrashCount();
-    // Refresh trash count every 30 seconds
-    const interval = setInterval(fetchTrashCount, 30000);
+    const refreshTrash = () => useTrashStore.getState().refresh();
+    const interval = setInterval(refreshTrash, 30000);
     return () => clearInterval(interval);
   }, []);
 
   const navItems = [
-    { name: "explorer", label: "Explorer", icon: RiFolderLine, count: null },
-    { name: "favorites", label: "Favorites", icon: RiStarLine, count: favorites.length },
-    { name: "recent", label: "Recent", icon: RiTimeLine, count: recentFiles.length },
-    { name: "trash", label: "Trash", icon: RiDeleteBinLine, count: trashCount },
-    { name: "settings", label: "Settings", icon: RiSettings3Line, count: null },
+    { to: "/explorer", label: "Explorer", icon: RiFolderLine, count: null },
+    { to: "/favorites", label: "Favorites", icon: RiStarLine, count: favorites.length },
+    { to: "/recent", label: "Recent", icon: RiTimeLine, count: recentFiles.length },
+    { to: "/trash", label: "Trash", icon: RiDeleteBinLine, count: trashCount },
+    { to: "/settings", label: "Settings", icon: RiSettings3Line, count: null },
   ];
 
   return (
@@ -81,23 +68,24 @@ export function Sidebar() {
       <nav className="flex-1 p-2 flex flex-col gap-0.5">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = route.name === item.name;
 
           return (
-            <button
-              key={item.name}
-              onClick={() => navigate(item.name)}
-              className={cx(
-                "flex items-center gap-2 px-3 py-2 rounded-lg text-body-medium transition-colors w-full text-start",
-                active
-                  ? "bg-background-secondary-hover text-text-primary"
-                  : "text-text-secondary hover:bg-background-secondary-hover hover:text-text-primary"
-              )}
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                cx(
+                  "flex items-center gap-2 px-3 py-2 rounded-lg text-body-medium transition-colors w-full text-start",
+                  isActive
+                    ? "bg-background-secondary-hover text-text-primary"
+                    : "text-text-secondary hover:bg-background-secondary-hover hover:text-text-primary"
+                )
+              }
             >
               <Icon className="size-5" aria-hidden />
               <span>{item.label}</span>
               <CountBadge count={item.count} />
-            </button>
+            </NavLink>
           );
         })}
       </nav>

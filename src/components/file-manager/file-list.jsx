@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { cx } from "@/utils/cx";
 import { FileIcon } from "@/components/file-manager/file-icon";
 import { ThumbnailImage } from "@/components/file-manager/thumbnail-image";
+import { ContextMenuTrigger } from "@/components/base/context-menu/context-menu";
 import { RiSortAsc, RiSortDesc, RiStarLine, RiStarFill } from "@remixicon/react";
 import { isSupportedImageFormat } from "@/lib/image/image-utils";
 
@@ -91,7 +92,7 @@ function SortableHeader({ field, label, sortBy, sortOrder, onSortChange, align =
  * @param {(file: Object) => void} props.onOpen - Callback when a file is opened
  * @param {(file: Object, event: React.MouseEvent) => void} props.onSelect - Callback when a file is selected
  * @param {Set<string>} props.selectedFiles - Set of selected file paths
- * @param {(file: Object, position: { x: number, y: number }) => void} props.onContextMenu - Context menu callback
+ * @param {(file: Object) => React.ReactNode} [props.renderContextMenu] - Returns BoardUI ContextMenu JSX for a file
  * @param {string} props.sortBy - Current sort field
  * @param {string} props.sortOrder - Current sort order
  * @param {(sortBy: string) => void} props.onSortChange - Sort change callback
@@ -103,7 +104,7 @@ export function FileList({
   onOpen,
   onSelect,
   selectedFiles = new Set(),
-  onContextMenu,
+  renderContextMenu,
   sortBy = "name",
   sortOrder = "asc",
   onSortChange,
@@ -126,15 +127,6 @@ export function FileList({
       onOpen?.(file);
     },
     [onOpen]
-  );
-
-  const handleContextMenu = useCallback(
-    (e, file) => {
-      e.preventDefault();
-      e.stopPropagation();
-      onContextMenu?.(file, { x: e.clientX, y: e.clientY });
-    },
-    [onContextMenu]
   );
 
   /**
@@ -204,13 +196,11 @@ export function FileList({
           {files.map((file) => {
             const isSelected = selectedFiles.has(file.path);
             const favorited = showFavorites && isFavorite(file.path);
-
-            return (
+            const row = (
               <tr
                 key={file.path}
                 onClick={(e) => handleRowClick(file, e)}
                 onDoubleClick={(e) => handleRowDoubleClick(file, e)}
-                onContextMenu={(e) => handleContextMenu(e, file)}
                 className={cx(
                   "border-b border-separator-border cursor-pointer transition-colors",
                   "hover:bg-background-secondary-hover",
@@ -282,6 +272,18 @@ export function FileList({
                 )}
               </tr>
             );
+
+            // Wrap in ContextMenuTrigger if renderContextMenu is provided
+            if (renderContextMenu) {
+              return (
+                <ContextMenuTrigger key={file.path}>
+                  {row}
+                  {renderContextMenu(file)}
+                </ContextMenuTrigger>
+              );
+            }
+
+            return row;
           })}
         </tbody>
       </table>

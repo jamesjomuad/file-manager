@@ -152,7 +152,7 @@ export function getLanguage(extension) {
  * @returns {string} Normalized extension
  */
 function normalizeExtension(extension) {
-  if (!extension) return '';
+  if (!extension || typeof extension !== 'string') return '';
   const ext = extension.toLowerCase();
   return ext.startsWith('.') ? ext : `.${ext}`;
 }

@@ -1,37 +1,66 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { FileToolbar } from "@/components/file-manager/file-toolbar";
 import { FileList } from "@/components/file-manager/file-list";
 import { FileGrid } from "@/components/file-manager/file-grid";
-import { FileContextMenu } from "@/components/file-manager/file-context-menu";
+import {
+  ContextMenu,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "@/components/base/context-menu/context-menu";
 import { FileDropZone } from "@/components/file-manager/file-drop-zone";
 import { ConfirmDialog } from "@/components/file-manager/confirm-dialog";
 import { FilePreviewModal } from "@/components/file-manager/file-preview-modal";
+import { CompressDialog } from "@/components/archive/compress-dialog";
+import { ExtractDialog } from "@/components/archive/extract-dialog";
 import { Breadcrumb } from "@/components/file-manager/breadcrumb";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { useHashRouterContext } from "@/contexts/hash-router-context";
+import { useTrashStore } from "@/stores/trash-store";
 import { canPreview, isImage } from "@/lib/file-type";
 import { isSupportedImageFormat } from "@/lib/image/image-utils";
+import {
+  RiEyeLine,
+  RiEditLine,
+  RiDeleteBinLine,
+  RiCodeBoxLine,
+  RiImageLine,
+  RiArchiveLine,
+  RiFolderDownloadLine,
+  RiFolderZipLine,
+} from "@remixicon/react";
+
+/**
+ * Decode a splat path from React Router into a folder path.
+ * Each segment is URL-decoded.
+ * @param {string} splat
+ * @returns {string}
+ */
+function decodeSplatPath(splat) {
+  if (!splat) return "";
+  return splat.split("/").map(decodeURIComponent).join("/");
+}
 
 /**
  * Explorer tab content component.
  * Renders the file explorer within the workspace tab system.
- * Folder navigation is synced with the hash route.
+ * Folder navigation is synced with the React Router hash route.
  *
  * @param {Object} props
  * @param {Object} props.tab - The workspace tab object
  */
 export function ExplorerTabContent({ tab }) {
-  const { route, navigateToExplorer } = useHashRouterContext();
+  const params = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { addRecent } = useRecentFiles();
   const { openTab, updateTabState } = useWorkspace();
 
   const [files, setFiles] = useState([]);
-  const [currentPath, setCurrentPath] = useState("");
   const [viewMode, setViewMode] = useState("grid");
   const [selectedFiles, setSelectedFiles] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,11 +69,12 @@ export function ExplorerTabContent({ tab }) {
   const [sortOrder, setSortOrder] = useState("asc");
   const [lastSelectedFile, setLastSelectedFile] = useState(null);
 
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState(null);
-
   // Confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState(null);
+
+  // Archive dialogs state
+  const [compressDialog, setCompressDialog] = useState(null);
+  const [extractDialog, setExtractDialog] = useState(null);
 
   // Upload state
   const [uploading, setUploading] = useState(false);
@@ -54,37 +84,45 @@ export function ExplorerTabContent({ tab }) {
   // Preview modal state
   const [previewFile, setPreviewFile] = useState(null);
 
-  // Track whether a navigation is from user action vs hash sync
+  // Get the folder path from the URL splat parameter
+  const routePath = decodeSplatPath(params["*"] || "");
+
+  // Track whether a navigation is from user action vs route sync
   const isUserNavigation = useRef(false);
 
-  // Initialize path from hash route or tab state
-  useEffect(() => {
-    const hashPath = route.name === "explorer" ? (route.path || "") : "";
-    const initialPath = hashPath || tab.state?.currentPath || "";
-    setCurrentPath(initialPath);
-  }, []);
+  // Initialize path from route or tab state (one-time)
+  const [currentPath, setCurrentPath] = useState(() => {
+    return routePath || tab.state?.currentPath || "";
+  });
 
-  // Sync hash route when path changes
+  // Sync URL route when path changes (user navigates in explorer)
+  // This synchronizes with an external system (the URL), which is the
+  // intended use of effects per the React documentation.
   useEffect(() => {
-    // Only update hash if it differs from current path
-    const hashPath = route.path || "";
-    if (hashPath !== currentPath && route.name === "explorer") {
-      navigateToExplorer(currentPath || null);
+    const encodedPath = currentPath
+      ? currentPath.split(/[\\/]/).map(encodeURIComponent).join("/")
+      : "";
+    const targetRoute = encodedPath ? `/explorer/${encodedPath}` : "/explorer";
+
+    // Only update URL if it differs from current location
+    if (location.pathname !== targetRoute) {
+      isUserNavigation.current = true;
+      navigate(targetRoute, { replace: !isUserNavigation.current });
     }
 
     // Update tab state
     updateTabState(tab.id, { currentPath });
-  }, [currentPath]);
+  }, [currentPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for hash changes (back/forward navigation)
+  // Listen for route changes (back/forward navigation)
+  // Syncing from external system (URL) — legitimate effect usage
   useEffect(() => {
-    if (route.name === "explorer") {
-      const hashPath = route.path || "";
-      if (hashPath !== currentPath) {
-        setCurrentPath(hashPath);
-      }
+    if (routePath !== currentPath) {
+      isUserNavigation.current = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCurrentPath(routePath);
     }
-  }, [route]);
+  }, [routePath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Fetch files for the current path
@@ -186,15 +224,14 @@ export function ExplorerTabContent({ tab }) {
 
         // Open in appropriate tab based on file type
         if (isSupportedImageFormat(file.extension)) {
-          // Open in image viewer tab
-          const galleryFiles = sortedFiles().filter(
-            (f) =>
-              f.type !== "directory" && isSupportedImageFormat(f.extension)
-          );
+          // Open in image viewer tab — pass only the single file, not the entire directory
+          // Gallery metadata will be loaded on-demand when user navigates
           openTab("image-viewer", {
             path: file.path,
             title: file.name,
-            state: { galleryFiles, currentIndex: galleryFiles.findIndex(f => f.path === file.path) },
+            state: { 
+              directoryPath: currentPath, // Pass directory path for on-demand gallery loading
+            },
           });
         } else {
           // Open in editor tab
@@ -246,44 +283,22 @@ export function ExplorerTabContent({ tab }) {
   );
 
   /**
-   * Handle context menu
-   */
-  const handleContextMenu = useCallback((file, event) => {
-    event.preventDefault();
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-      file,
-    });
-  }, []);
-
-  /**
-   * Close context menu
-   */
-  const closeContextMenu = useCallback(() => {
-    setContextMenu(null);
-  }, []);
-
-  /**
    * Handle preview
    */
   const handlePreview = useCallback(
     (file) => {
-      if (isImage(file)) {
-        // Open in image viewer
-        const galleryFiles = sortedFiles().filter(
-          (f) => f.type !== "directory" && isSupportedImageFormat(f.extension)
-        );
+      if (isImage(file.extension)) {
+        // Open in image viewer — pass only directory path for on-demand gallery loading
         openTab("image-viewer", {
           path: file.path,
           title: file.name,
-          state: { galleryFiles, currentIndex: galleryFiles.findIndex(f => f.path === file.path) },
+          state: { directoryPath: currentPath },
         });
-      } else if (canPreview(file)) {
+      } else if (canPreview(file.extension)) {
         setPreviewFile(file);
       }
     },
-    [openTab, sortedFiles]
+    [openTab, currentPath]
   );
 
   /**
@@ -455,14 +470,303 @@ export function ExplorerTabContent({ tab }) {
         }
       }
 
-      // Clear selection and refresh
+      // Clear selection, refresh file list, and update trash count
       setSelectedFiles(new Set());
       fetchFiles();
+      useTrashStore.getState().refresh();
     } catch (error) {
       console.error("Error deleting files:", error);
       alert("Failed to delete some files");
     }
   }, [selectedFiles, fetchFiles]);
+
+  /**
+   * Handle bulk compress — open compress dialog with selected files
+   */
+  const handleBulkCompress = useCallback(() => {
+    if (selectedFiles.size === 0) return;
+    const items = Array.from(selectedFiles).map(p => {
+      const f = files.find(ff => ff.path === p);
+      return { path: p, name: f?.name || p.split('/').pop() || p };
+    });
+    setCompressDialog({ items });
+  }, [selectedFiles, files]);
+
+  /**
+   * Handle rename file/folder
+   */
+  const handleRename = useCallback(async (file) => {
+    const newName = prompt("Enter new name:", file.name);
+    if (!newName || newName.trim() === file.name) return;
+
+    try {
+      const parentPath = file.path.includes("/")
+        ? file.path.substring(0, file.path.lastIndexOf("/"))
+        : file.path.includes("\\")
+        ? file.path.substring(0, file.path.lastIndexOf("\\"))
+        : "";
+
+      const newPath = parentPath ? `${parentPath}/${newName.trim()}` : newName.trim();
+
+      const response = await fetch(`/api/files/${encodeURIComponent(file.path)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPath }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to rename");
+      }
+
+      // Clear selection and refresh
+      setSelectedFiles(new Set());
+      fetchFiles();
+    } catch (error) {
+      console.error("Error renaming:", error);
+      alert("Failed to rename");
+    }
+  }, [fetchFiles]);
+
+  /**
+   * Handle context menu action from BoardUI ContextMenu
+   * @param {string|symbol} key - The action id
+   * @param {Object} file - The file being acted on
+   */
+  const handleContextAction = useCallback((key, file) => {
+    switch (key) {
+      case "preview":
+        handlePreview(file);
+        break;
+      case "open-in-editor":
+        openTab("editor", {
+          path: file.path,
+          title: file.name,
+        });
+        break;
+      case "open-in-image-viewer":
+        openTab("image-viewer", {
+          path: file.path,
+          title: file.name,
+          state: { directoryPath: currentPath },
+        });
+        break;
+      case "open-archive":
+        openTab("archive", {
+          path: file.path,
+          title: file.name,
+        });
+        break;
+      case "rename":
+        handleRename(file);
+        break;
+      case "compress":
+        setCompressDialog({
+          items: [{ path: file.path, name: file.name }],
+        });
+        break;
+      case "extract-here":
+        // Extract directly to current directory
+        fetch("/api/files/archive/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            archivePath: file.path,
+            destPath: currentPath || ".",
+            conflictStrategy: "skip",
+          }),
+        }).then(() => handleRefresh());
+        break;
+      case "extract-to":
+        setExtractDialog({
+          archivePath: file.path,
+          archiveName: file.name,
+        });
+        break;
+      case "delete":
+        setConfirmDialog({
+          title: "Delete Item",
+          message: `Are you sure you want to delete "${file.name}"?`,
+          confirmLabel: "Delete",
+          onConfirm: async () => {
+            try {
+              const response = await fetch(
+                `/api/files/${encodeURIComponent(file.path)}`,
+                { method: "DELETE" }
+              );
+              if (!response.ok) throw new Error("Failed to delete");
+              useTrashStore.getState().refresh();
+            } catch (error) {
+              console.error("Error deleting file:", error);
+              alert("Failed to delete file");
+            }
+          },
+        });
+        break;
+    }
+  }, [handlePreview, handleRename, openTab, currentPath, handleRefresh]);
+
+  /**
+   * Render context menu for a file (used by FileList/FileGrid)
+   * @param {Object} file
+   * @returns {React.ReactNode}
+   */
+  const renderContextMenu = useCallback((file) => {
+    const isImageFile = isImage(file.extension);
+    const isImageFormat = isSupportedImageFormat(file.extension);
+    const isCodeFile = canPreview(file.extension) && !isImageFile;
+    const isZip = file.extension?.toLowerCase() === '.zip';
+    const isArchive = isZip;
+
+    return (
+      <ContextMenu
+        aria-label="File actions"
+        onAction={(key) => handleContextAction(key, file)}
+      >
+        {/* Open actions based on file type */}
+        {isImageFormat && (
+          <ContextMenuItem id="open-in-image-viewer" icon={RiImageLine}>
+            Open in Image Viewer
+          </ContextMenuItem>
+        )}
+        {isCodeFile && (
+          <ContextMenuItem id="open-in-editor" icon={RiCodeBoxLine}>
+            Open in Editor
+          </ContextMenuItem>
+        )}
+        {isArchive && (
+          <ContextMenuItem id="open-archive" icon={RiArchiveLine}>
+            Open Archive
+          </ContextMenuItem>
+        )}
+        {canPreview(file.extension) && !isImageFormat && !isCodeFile && !isArchive && (
+          <ContextMenuItem id="preview" icon={RiEyeLine}>
+            Preview
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem id="rename" icon={RiEditLine}>
+          Rename
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        {/* Archive actions */}
+        {!isArchive && (
+          <ContextMenuItem id="compress" icon={RiFolderZipLine}>
+            Compress to ZIP
+          </ContextMenuItem>
+        )}
+        {isArchive && (
+          <>
+            <ContextMenuItem id="extract-here" icon={RiFolderDownloadLine}>
+              Extract Here
+            </ContextMenuItem>
+            <ContextMenuItem id="extract-to" icon={RiFolderDownloadLine}>
+              Extract To...
+            </ContextMenuItem>
+          </>
+        )}
+        <ContextMenuSeparator />
+        <ContextMenuItem id="delete" icon={RiDeleteBinLine} variant="danger">
+          Delete
+        </ContextMenuItem>
+      </ContextMenu>
+    );
+  }, [handleContextAction]);
+
+  /**
+   * Keyboard shortcuts
+   */
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Skip when typing in inputs
+      const isInput =
+        e.target.tagName === "INPUT" ||
+        e.target.tagName === "TEXTAREA" ||
+        e.target.isContentEditable;
+
+      if (isInput) return;
+
+      const isMod = e.ctrlKey || e.metaKey;
+
+      // Delete - delete selected files
+      if (e.key === "Delete" && selectedFiles.size > 0) {
+        e.preventDefault();
+        handleBulkDelete();
+        return;
+      }
+
+      // F2 - rename selected file
+      if (e.key === "F2" && selectedFiles.size === 1) {
+        e.preventDefault();
+        const selectedPath = Array.from(selectedFiles)[0];
+        const file = files.find((f) => f.path === selectedPath);
+        if (file) handleRename(file);
+        return;
+      }
+
+      // Ctrl+A - select all
+      if (isMod && e.key === "a") {
+        e.preventDefault();
+        handleSelectAll();
+        return;
+      }
+
+      // Escape - clear selection
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSelectedFiles(new Set());
+        return;
+      }
+
+      // Enter - open selected file/folder
+      if (e.key === "Enter" && selectedFiles.size === 1) {
+        e.preventDefault();
+        const selectedPath = Array.from(selectedFiles)[0];
+        const file = files.find((f) => f.path === selectedPath);
+        if (file) handleOpen(file);
+        return;
+      }
+
+      // Backspace - navigate up
+      if (e.key === "Backspace" && !isMod) {
+        e.preventDefault();
+        if (currentPath) handleNavigateUp();
+        return;
+      }
+
+      // Arrow keys - navigate selection
+      if (e.key.startsWith("Arrow") && files.length > 0) {
+        e.preventDefault();
+        const sorted = sortedFiles();
+        const currentIndex = selectedFiles.size === 1
+          ? sorted.findIndex((f) => f.path === Array.from(selectedFiles)[0])
+          : -1;
+
+        let newIndex = currentIndex;
+
+        switch (e.key) {
+          case "ArrowUp":
+            newIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+            break;
+          case "ArrowDown":
+            newIndex = currentIndex < sorted.length - 1 ? currentIndex + 1 : sorted.length - 1;
+            break;
+          case "ArrowLeft":
+            newIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+            break;
+          case "ArrowRight":
+            newIndex = currentIndex < sorted.length - 1 ? currentIndex + 1 : sorted.length - 1;
+            break;
+        }
+
+        if (newIndex >= 0 && newIndex < sorted.length) {
+          setSelectedFiles(new Set([sorted[newIndex].path]));
+          setLastSelectedFile(sorted[newIndex].path);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedFiles, files, currentPath, viewMode, sortedFiles, handleBulkDelete, handleRename, handleSelectAll, handleOpen, handleNavigateUp]);
 
   return (
     <FileDropZone
@@ -494,6 +798,7 @@ export function ExplorerTabContent({ tab }) {
           totalCount={files.length}
           onSelectAll={handleSelectAll}
           onBulkDelete={handleBulkDelete}
+          onBulkCompress={handleBulkCompress}
           onRefresh={handleRefresh}
         />
 
@@ -518,7 +823,7 @@ export function ExplorerTabContent({ tab }) {
               onOpen={handleOpen}
               onSelect={handleSelect}
               selectedFiles={selectedFiles}
-              onContextMenu={handleContextMenu}
+              renderContextMenu={renderContextMenu}
               isFavorite={isFavorite}
               onToggleFavorite={toggleFavorite}
             />
@@ -528,7 +833,7 @@ export function ExplorerTabContent({ tab }) {
               onOpen={handleOpen}
               onSelect={handleSelect}
               selectedFiles={selectedFiles}
-              onContextMenu={handleContextMenu}
+              renderContextMenu={renderContextMenu}
               sortBy={sortBy}
               sortOrder={sortOrder}
               onSortChange={(by, order) => {
@@ -540,38 +845,6 @@ export function ExplorerTabContent({ tab }) {
             />
           )}
         </div>
-
-        {/* Context menu */}
-        {contextMenu && (
-          <FileContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            file={contextMenu.file}
-            currentPath={currentPath}
-            selectedFiles={selectedFiles}
-            onClose={closeContextMenu}
-            onRefresh={handleRefresh}
-            onPreview={handlePreview}
-            onNavigate={handleNavigate}
-            onOpenInEditor={(file) => {
-              openTab("editor", {
-                path: file.path,
-                title: file.name,
-              });
-            }}
-            onOpenImageViewer={(file) => {
-              const galleryFiles = sortedFiles().filter(
-                (f) => f.type !== "directory" && isSupportedImageFormat(f.extension)
-              );
-              openTab("image-viewer", {
-                path: file.path,
-                title: file.name,
-                state: { galleryFiles, currentIndex: galleryFiles.findIndex(f => f.path === file.path) },
-              });
-            }}
-            onConfirmDialog={setConfirmDialog}
-          />
-        )}
 
         {/* Confirmation dialog */}
         {confirmDialog && (
@@ -595,6 +868,30 @@ export function ExplorerTabContent({ tab }) {
             onClose={() => setPreviewFile(null)}
           />
         )}
+
+        {/* Compress dialog */}
+        <CompressDialog
+          open={!!compressDialog}
+          items={compressDialog?.items || []}
+          currentPath={currentPath}
+          onClose={() => setCompressDialog(null)}
+          onComplete={() => {
+            handleRefresh();
+          }}
+        />
+
+        {/* Extract dialog */}
+        <ExtractDialog
+          open={!!extractDialog}
+          archivePath={extractDialog?.archivePath || ''}
+          archiveName={extractDialog?.archiveName || ''}
+          selectedEntries={extractDialog?.selectedEntries}
+          currentPath={currentPath}
+          onClose={() => setExtractDialog(null)}
+          onComplete={() => {
+            handleRefresh();
+          }}
+        />
       </div>
     </FileDropZone>
   );

@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { FileList } from "@/components/file-manager/file-list";
 import { FileGrid } from "@/components/file-manager/file-grid";
 import { Button } from "@/components/base/buttons/button";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { useHashRouterContext } from "@/contexts/hash-router-context";
 import { isSupportedImageFormat } from "@/lib/image/image-utils";
 import { RiStarLine, RiDeleteBinLine, RiRefreshLine } from "@remixicon/react";
 
@@ -16,7 +16,7 @@ import { RiStarLine, RiDeleteBinLine, RiRefreshLine } from "@remixicon/react";
  */
 export function FavoritesView() {
   const { openTab } = useWorkspace();
-  const { navigateToExplorer } = useHashRouterContext();
+  const navigate = useNavigate();
   const { favorites, removeFavorite, toggleFavorite, clearFavorites } = useFavorites();
   const { addRecent } = useRecentFiles();
 
@@ -64,7 +64,11 @@ export function FavoritesView() {
   const handleOpen = useCallback(
     (file) => {
       if (file.type === "directory") {
-        navigateToExplorer(file.path);
+        const encodedPath = file.path
+          .split(/[\\/]/)
+          .map(encodeURIComponent)
+          .join("/");
+        navigate(`/explorer/${encodedPath}`);
       } else {
         addRecent(file.path);
         const ext = file.extension?.toLowerCase();
@@ -72,7 +76,6 @@ export function FavoritesView() {
           openTab('image-viewer', {
             path: file.path,
             title: file.name,
-            state: { galleryFiles: [file], currentIndex: 0 },
           });
         } else if (ext === '.pdf') {
           openTab('pdf-viewer', { path: file.path, title: file.name });
@@ -83,7 +86,7 @@ export function FavoritesView() {
         }
       }
     },
-    [openTab, navigateToExplorer, addRecent]
+    [openTab, navigate, addRecent]
   );
 
   const handleSelect = useCallback(() => {}, []);

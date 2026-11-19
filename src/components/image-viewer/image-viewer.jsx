@@ -5,7 +5,6 @@ import { cx } from '@/utils/cx';
 import { ImageCanvas } from './image-canvas';
 import { ImageViewerToolbar } from './image-toolbar';
 import { ImageInfoPanel } from './image-info-panel';
-import { ImageFilmstrip } from './image-filmstrip';
 import { useImageViewer } from '@/hooks/use-image-viewer';
 import {
   parseExifData,
@@ -402,15 +401,6 @@ export function ImageViewer({
           />
         )}
       </div>
-
-      {/* Filmstrip (bottom) */}
-      {showFilmstrip && imageGalleryFiles.length > 1 && (
-        <ImageFilmstrip
-          files={imageGalleryFiles}
-          currentIndex={currentIndex}
-          onSelect={goToIndex}
-        />
-      )}
     </div>
   );
 }

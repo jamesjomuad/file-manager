@@ -51,7 +51,7 @@ export function useImageViewer({
   galleryFiles = [],
   initialIndex = 0,
   showInfoPanel: initialShowInfoPanel = true,
-  showFilmstrip: initialShowFilmstrip = true,
+  showFilmstrip: initialShowFilmstrip = false, // Disabled by default to avoid loading all thumbnails
 }) {
   // Transform state
   const [transform, setTransform] = useState({
@@ -240,7 +240,7 @@ export function useImageViewer({
     }
   }, [galleryFiles.length, resetTransform]);
 
-  // Update current index when file prop changes
+  // Update current index when file prop changes or when gallery loads later
   useEffect(() => {
     if (file && galleryFiles.length > 0) {
       const idx = galleryFiles.findIndex((f) => f.path === file.path);
@@ -251,7 +251,7 @@ export function useImageViewer({
         setLoading(true);
       }
     }
-  }, [file?.path]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [file?.path, galleryFiles.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --------------------------------------------------------------------------
   // Fullscreen

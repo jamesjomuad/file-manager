@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { cx } from "@/utils/cx";
 import { Button } from "@/components/base/buttons/button";
+import { ButtonGroup, ButtonGroupItem } from "@/components/base/buttons/button-group";
 import { Input } from "@/components/base/input/input";
 import {
   RiFolderAddLine,
@@ -16,6 +16,9 @@ import {
   RiCheckboxBlankLine,
   RiCheckboxFill,
   RiArrowUpLine,
+  RiFolderZipLine,
+  RiGridLine,
+  RiListUnordered,
 } from "@remixicon/react";
 
 /**
@@ -34,9 +37,12 @@ import {
  * @param {number} props.totalCount - Total number of files
  * @param {() => void} props.onSelectAll - Select all callback
  * @param {() => void} props.onBulkDelete - Bulk delete callback
+ * @param {() => void} [props.onBulkCompress] - Bulk compress callback
  * @param {string} props.sortBy - Current sort field
  * @param {string} props.sortOrder - Current sort order
  * @param {(sortBy: string) => void} props.onSortChange - Sort change callback
+ * @param {'grid'|'list'} props.viewMode - Current view mode
+ * @param {(mode: 'grid'|'list') => void} props.onViewModeChange - View mode change callback
  */
 export function FileToolbar({
   currentPath,
@@ -53,9 +59,12 @@ export function FileToolbar({
   totalCount = 0,
   onSelectAll,
   onBulkDelete,
+  onBulkCompress,
   sortBy = "name",
   sortOrder = "asc",
   onSortChange,
+  viewMode = "grid",
+  onViewModeChange,
 }) {
   const fileInputRef = useRef(null);
   const hasSelection = selectedCount > 0;
@@ -146,6 +155,14 @@ export function FileToolbar({
               {allSelected ? "Deselect All" : "Select All"}
             </Button>
             <Button
+              variant="secondary"
+              size="small"
+              leadingIcon={RiFolderZipLine}
+              onClick={onBulkCompress}
+            >
+              Compress ({selectedCount})
+            </Button>
+            <Button
               variant="danger"
               size="small"
               leadingIcon={RiDeleteBinLine}
@@ -160,49 +177,57 @@ export function FileToolbar({
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Right side: sorting + search + refresh */}
+      {/* Right side: view toggle + sorting + search + refresh */}
       <div className="flex items-center gap-2">
+        {/* View mode toggle */}
+        <ButtonGroup size="small" aria-label="View mode">
+          <ButtonGroupItem
+            iconOnly
+            leadingIcon={RiGridLine}
+            selected={viewMode === "grid"}
+            onClick={() => onViewModeChange?.("grid")}
+            aria-label="Grid view"
+          />
+          <ButtonGroupItem
+            iconOnly
+            leadingIcon={RiListUnordered}
+            selected={viewMode === "list"}
+            onClick={() => onViewModeChange?.("list")}
+            aria-label="List view"
+          />
+        </ButtonGroup>
+
+        <div className="w-px h-6 bg-separator-border" />
+
         {/* Sorting controls */}
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="small"
+        <ButtonGroup size="small" aria-label="Sort by">
+          <ButtonGroupItem
+            selected={sortBy === "name"}
             onClick={() => onSortChange("name")}
-            className={cx(
-              sortBy === "name" && "bg-background-secondary-hover"
-            )}
           >
             Name
-          </Button>
-          <Button
-            variant="ghost"
-            size="small"
+          </ButtonGroupItem>
+          <ButtonGroupItem
+            selected={sortBy === "size"}
             onClick={() => onSortChange("size")}
-            className={cx(
-              sortBy === "size" && "bg-background-secondary-hover"
-            )}
           >
             Size
-          </Button>
-          <Button
-            variant="ghost"
-            size="small"
+          </ButtonGroupItem>
+          <ButtonGroupItem
+            selected={sortBy === "modified"}
             onClick={() => onSortChange("modified")}
-            className={cx(
-              sortBy === "modified" && "bg-background-secondary-hover"
-            )}
           >
             Modified
-          </Button>
-          <Button
-            variant="ghost"
-            size="small"
-            iconOnly
-            leadingIcon={sortOrder === "asc" ? RiSortAsc : RiSortDesc}
-            onClick={() => onSortChange(sortBy)}
-            aria-label={sortOrder === "asc" ? "Sort ascending" : "Sort descending"}
-          />
-        </div>
+          </ButtonGroupItem>
+        </ButtonGroup>
+        <Button
+          variant="ghost"
+          size="small"
+          iconOnly
+          leadingIcon={sortOrder === "asc" ? RiSortAsc : RiSortDesc}
+          onClick={() => onSortChange(sortBy)}
+          aria-label={sortOrder === "asc" ? "Sort ascending" : "Sort descending"}
+        />
 
         <div className="w-px h-6 bg-separator-border" />
 

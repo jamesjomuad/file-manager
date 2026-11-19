@@ -1,41 +1,30 @@
-"use client";
-
-import { createContext, useContext } from "react";
-import { useWorkspaceTabs } from "@/hooks/use-workspace-tabs";
+'use client';
 
 /**
- * @typedef {ReturnType<typeof useWorkspaceTabs>} WorkspaceContextValue
+ * Workspace Context - Backward compatibility layer.
+ *
+ * This file re-exports from the Zustand workspace store.
+ * Components using `useWorkspace()` or `WorkspaceProvider` will continue to work.
+ *
+ * @deprecated Import from `@/stores/workspace-store` directly for new code.
  */
 
-/** @type {import('react').Context<WorkspaceContextValue|null>} */
-const WorkspaceContext = createContext(null);
+export {
+  useWorkspace,
+  useWorkspaceStore,
+  useActiveTab,
+  useActiveTabIndex,
+} from '@/stores/workspace-store';
 
 /**
- * Workspace context provider.
- * Wraps the application and provides centralized tab management.
+ * WorkspaceProvider - No-op component for backward compatibility.
+ *
+ * The workspace store is now global and doesn't need a provider.
+ * This component simply renders children without any wrapping.
  *
  * @param {Object} props
  * @param {import('react').ReactNode} props.children
  */
 export function WorkspaceProvider({ children }) {
-  const workspace = useWorkspaceTabs();
-  return (
-    <WorkspaceContext.Provider value={workspace}>
-      {children}
-    </WorkspaceContext.Provider>
-  );
-}
-
-/**
- * Access the workspace tab manager.
- * Must be used within a WorkspaceProvider.
- *
- * @returns {WorkspaceContextValue}
- */
-export function useWorkspace() {
-  const ctx = useContext(WorkspaceContext);
-  if (!ctx) {
-    throw new Error("useWorkspace must be used within a WorkspaceProvider");
-  }
-  return ctx;
+  return <>{children}</>;
 }

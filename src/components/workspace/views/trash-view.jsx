@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { FileIcon } from "@/components/file-manager/file-icon";
 import { ConfirmDialog } from "@/components/file-manager/confirm-dialog";
 import { Button } from "@/components/base/buttons/button";
+import { useTrashStore } from "@/stores/trash-store";
 import { cx } from "@/utils/cx";
 import {
   RiArrowGoBackLine,
@@ -59,7 +60,10 @@ export function TrashView() {
       const response = await fetch("/api/trash");
       if (!response.ok) throw new Error("Failed to fetch trash");
       const data = await response.json();
-      setTrashItems(data.data || []);
+      const items = data.data || [];
+      setTrashItems(items);
+      // Sync count to trash store for sidebar badge
+      useTrashStore.setState({ count: items.length });
     } catch (error) {
       console.error("Error fetching trash:", error);
       setTrashItems([]);

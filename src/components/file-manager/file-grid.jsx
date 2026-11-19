@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { cx } from "@/utils/cx";
 import { FileIcon } from "@/components/file-manager/file-icon";
 import { ThumbnailImage } from "@/components/file-manager/thumbnail-image";
+import { ContextMenuTrigger } from "@/components/base/context-menu/context-menu";
 import { RiStarLine, RiStarFill } from "@remixicon/react";
 import { isSupportedImageFormat } from "@/lib/image/image-utils";
 
@@ -14,7 +15,7 @@ import { isSupportedImageFormat } from "@/lib/image/image-utils";
  * @param {(file: Object) => void} props.onOpen - Callback when a file is opened
  * @param {(file: Object, event: React.MouseEvent) => void} props.onSelect - Callback when a file is selected
  * @param {Set<string>} props.selectedFiles - Set of selected file paths
- * @param {(file: Object, position: { x: number, y: number }) => void} props.onContextMenu - Context menu callback
+ * @param {(file: Object) => React.ReactNode} [props.renderContextMenu] - Returns BoardUI ContextMenu JSX for a file
  * @param {(path: string) => boolean} [props.isFavorite] - Check if a path is favorited
  * @param {(path: string) => void} [props.onToggleFavorite] - Toggle favorite for a path
  */
@@ -23,7 +24,7 @@ export function FileGrid({
   onOpen,
   onSelect,
   selectedFiles = new Set(),
-  onContextMenu,
+  renderContextMenu,
   isFavorite,
   onToggleFavorite,
 }) {
@@ -43,15 +44,6 @@ export function FileGrid({
       onOpen?.(file);
     },
     [onOpen]
-  );
-
-  const handleContextMenu = useCallback(
-    (e, file) => {
-      e.preventDefault();
-      e.stopPropagation();
-      onContextMenu?.(file, { x: e.clientX, y: e.clientY });
-    },
-    [onContextMenu]
   );
 
   /**
@@ -87,12 +79,11 @@ export function FileGrid({
           const isSelected = selectedFiles.has(file.path);
           const favorited = showFavorites && isFavorite(file.path);
 
-          return (
+          const card = (
             <div
               key={file.path}
               onClick={(e) => handleClick(file, e)}
               onDoubleClick={(e) => handleDoubleClick(file, e)}
-              onContextMenu={(e) => handleContextMenu(e, file)}
               className={cx(
                 "relative rounded-xl p-3 pt-6 flex flex-col items-center gap-2 cursor-pointer transition-colors",
                 "hover:bg-background-secondary-hover",
@@ -135,6 +126,18 @@ export function FileGrid({
               </span>
             </div>
           );
+
+          // Wrap in ContextMenuTrigger if renderContextMenu is provided
+          if (renderContextMenu) {
+            return (
+              <ContextMenuTrigger key={file.path}>
+                {card}
+                {renderContextMenu(file)}
+              </ContextMenuTrigger>
+            );
+          }
+
+          return card;
         })}
       </div>
     </div>

@@ -47,8 +47,10 @@ function SettingsSection({ title, description, icon: Icon, children, className }
 
 /**
  * Settings view rendered within the workspace.
+ * @param {Object} props
+ * @param {string} [props.initialSection] - Section to scroll to on mount
  */
-export function SettingsView() {
+export function SettingsView({ initialSection }) {
   const { currentTheme, themeMode, accentColor, setThemeMode, previewTheme } = useTheme();
 
   return (
