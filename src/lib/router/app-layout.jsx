@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { QuickOpenModal } from "@/components/workspace/quick-open-modal";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isSupportedImageFormat } from "@/lib/image/image-utils";
+import { isBrowsableArchive } from "@/lib/archive/formats";
 
 /**
  * Application layout component.
@@ -43,7 +44,7 @@ export function AppLayout() {
         openTab("markdown-viewer", { path: file.path, title: file.name });
       } else if ([".txt", ".log", ".csv"].includes(ext)) {
         openTab("text-viewer", { path: file.path, title: file.name });
-      } else if ([".zip", ".tar", ".gz", ".7z", ".rar"].includes(ext)) {
+      } else if (isBrowsableArchive(ext, file.name)) {
         openTab("archive", { path: file.path, title: file.name });
       } else {
         openTab("editor", { path: file.path, title: file.name });

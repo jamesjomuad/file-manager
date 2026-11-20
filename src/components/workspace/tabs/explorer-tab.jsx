@@ -16,6 +16,7 @@ import { ConfirmDialog } from "@/components/file-manager/confirm-dialog";
 import { FilePreviewModal } from "@/components/file-manager/file-preview-modal";
 import { CompressDialog } from "@/components/archive/compress-dialog";
 import { ExtractDialog } from "@/components/archive/extract-dialog";
+import { isExtractableArchive, isBrowsableArchive } from "@/lib/archive/formats";
 import { Breadcrumb } from "@/components/file-manager/breadcrumb";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
@@ -1201,8 +1202,9 @@ export function ExplorerTabContent({ tab }) {
     const isImageFile = isImage(file.extension);
     const isImageFormat = isSupportedImageFormat(file.extension);
     const isCodeFile = canPreview(file.extension) && !isImageFile;
-    const isZip = file.extension?.toLowerCase() === '.zip';
-    const isArchive = isZip;
+    // Use centralized format detection — handles compound extensions and case
+    const isArchive = isExtractableArchive(file.extension, file.name);
+    const isBrowsable = isBrowsableArchive(file.extension, file.name);
 
     return (
       <ContextMenu
@@ -1220,12 +1222,12 @@ export function ExplorerTabContent({ tab }) {
             Open in Editor
           </ContextMenuItem>
         )}
-        {isArchive && (
+        {isBrowsable && (
           <ContextMenuItem id="open-archive" icon={RiArchiveLine}>
             Open Archive
           </ContextMenuItem>
         )}
-        {canPreview(file.extension) && !isImageFormat && !isCodeFile && !isArchive && (
+        {canPreview(file.extension) && !isImageFormat && !isCodeFile && !isBrowsable && (
           <ContextMenuItem id="preview" icon={RiEyeLine}>
             Preview
           </ContextMenuItem>

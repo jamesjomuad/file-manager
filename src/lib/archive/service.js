@@ -2,6 +2,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import AdmZip from 'adm-zip';
 import { validatePath, ensureWithinRoot, ROOT_DIR } from '@/lib/filesystem/security';
+import { detectArchiveFormat } from '@/lib/archive/formats';
+import { findSevenZip, listArchive as listSevenZipArchive, extractEntry as extractSevenZipEntry } from '@/lib/archive/seven-zip';
 
 /**
  * Archive service — ZIP compression and extraction with security validation.
@@ -325,6 +327,21 @@ export async function extractArchive({
   onProgress,
   cancelToken,
 }) {
+  // Detect archive format and dispatch
+  const format = detectArchiveFormat(archivePath);
+  
+  if (format?.id === '7z') {
+    return extractSevenZip({
+      archivePath,
+      destPath,
+      conflictStrategy,
+      operationId,
+      onProgress,
+      cancelToken,
+    });
+  }
+  
+  // Default: ZIP extraction via adm-zip
   const errors = [];
   let extracted = 0;
   let skipped = 0;
@@ -492,6 +509,205 @@ export async function extractArchive({
 }
 
 /**
+ * Extract a 7z archive to a destination directory using 7z.exe
+ * 
+ * @param {Object} options
+ * @param {string} options.archivePath - Archive path (relative to root)
+ * @param {string} options.destPath - Destination directory (relative to root)
+ * @param {string} [options.conflictStrategy='skip'] - Conflict resolution strategy
+ * @param {string} [options.operationId] - Operation ID for progress tracking
+ * @param {Function} [options.onProgress] - Progress callback
+ * @param {{ cancelled: boolean }} [options.cancelToken] - Cancellation token
+ * @returns {Promise<{ success: boolean, extracted: number, skipped: number, errors: string[] }>}
+ */
+export async function extractSevenZip({
+  archivePath,
+  destPath,
+  conflictStrategy = CONFLICT_STRATEGIES.skip,
+  operationId,
+  onProgress,
+  cancelToken,
+}) {
+  const { execFile } = await import('child_process');
+  const { promisify } = await import('util');
+  const execFileAsync = promisify(execFile);
+  
+  const errors = [];
+  let extracted = 0;
+  let skipped = 0;
+  
+  try {
+    // Validate paths
+    const { absolutePath: absArchivePath } = await validatePath(archivePath);
+    const { absolutePath: absDestPath } = await validatePath(destPath);
+    
+    // Verify archive exists
+    const archiveStat = await fs.stat(absArchivePath);
+    if (archiveStat.isDirectory()) {
+      throw { status: 400, message: 'Archive path is a directory' };
+    }
+    
+    // Ensure destination exists
+    try {
+      await fs.access(absDestPath);
+    } catch {
+      throw { status: 404, message: 'Destination directory does not exist' };
+    }
+    
+    // Verify destination is within root
+    const normalizedRoot = path.normalize(ROOT_DIR);
+    if (!absDestPath.startsWith(normalizedRoot)) {
+      throw { status: 403, message: 'Destination path outside root directory' };
+    }
+    
+    // Find 7z executable
+    const sevenZip = await findSevenZip();
+    if (!sevenZip) {
+      throw { status: 500, message: '7-Zip is not installed on this system' };
+    }
+    
+    // First, list entries to get count for progress
+    const listing = await listSevenZipArchive(absArchivePath);
+    const allEntries = listing.entries;
+    
+    // Check entry count limit
+    if (allEntries.length > LIMITS.maxEntryCount) {
+      throw { status: 413, message: `Archive has too many entries: ${allEntries.length}` };
+    }
+    
+    // Check total size limit
+    if (listing.totalSize > LIMITS.maxArchiveSize) {
+      throw { status: 413, message: `Archive too large: ${listing.totalSize} bytes` };
+    }
+    
+    // Check decompression ratio
+    const ratio = listing.totalSize / archiveStat.size;
+    if (ratio > LIMITS.maxDecompressionRatio) {
+      throw { status: 413, message: `Suspicious decompression ratio: ${ratio.toFixed(1)}x` };
+    }
+    
+    // Validate all entry paths for ZIP Slip
+    for (const entry of allEntries) {
+      const validation = validateEntryPath(entry.path, absDestPath);
+      if (!validation.valid) {
+        // Skip invalid entries silently — they won't be extracted
+        entry._skip = true;
+        entry._skipReason = validation.reason;
+      }
+      
+      if (isBlockedExecutable(entry.name)) {
+        entry._skip = true;
+        entry._skipReason = 'Blocked executable type';
+      }
+    }
+    
+    const entriesToExtract = allEntries.filter((e) => !e._skip);
+    const totalEntries = entriesToExtract.length;
+    const totalBytes = entriesToExtract.reduce((sum, e) => sum + (e.isDirectory ? 0 : e.size), 0);
+    
+    // Report initial state
+    onProgress?.(0, totalEntries, null, 0, totalBytes);
+    
+    // For 7z, we extract the entire archive at once (7z.exe handles it efficiently)
+    // Then we report progress based on what was extracted
+    
+    // Build extraction command
+    const args = ['x', '-y'];
+    
+    // Handle conflict strategies
+    if (conflictStrategy === CONFLICT_STRATEGIES.skip) {
+      args.push('-aos'); // skip existing
+    } else if (conflictStrategy === CONFLICT_STRATEGIES.replace) {
+      args.push('-aoa'); // overwrite all
+    } else if (conflictStrategy === CONFLICT_STRATEGIES.rename || conflictStrategy === CONFLICT_STRATEGIES.keepBoth) {
+      args.push('-aou'); // auto-rename existing
+    }
+    
+    args.push(`-o${absDestPath}`);
+    args.push(absArchivePath);
+    
+    // Check for cancellation
+    if (cancelToken?.cancelled) {
+      return { success: true, extracted: 0, skipped: 0, errors: [] };
+    }
+    
+    // Execute extraction
+    try {
+      const { stdout } = await execFileAsync(sevenZip, args, {
+        maxBuffer: 50 * 1024 * 1024,
+        timeout: 600000, // 10 minute timeout for extraction
+      });
+      
+      // Parse stdout for progress info
+      const lines = stdout.split('\n');
+      let processedEntries = 0;
+      let extractedBytes = 0;
+      
+      for (const line of lines) {
+        if (line.startsWith('- ') || line.startsWith('Extracting  ')) {
+          processedEntries++;
+          const entryName = line.replace(/^(?:- |Extracting  )/, '').trim();
+          
+          // Find matching entry for size
+          const matchingEntry = allEntries.find((e) => e.path === entryName || e.name === entryName);
+          if (matchingEntry && !matchingEntry.isDirectory) {
+            extractedBytes += matchingEntry.size;
+          }
+          
+          onProgress?.(processedEntries, totalEntries, entryName, extractedBytes, totalBytes);
+        }
+      }
+      
+      extracted = processedEntries;
+    } catch (error) {
+      // 7z.exe might return non-zero for warnings (like skipped files)
+      // Check if files were actually extracted
+      if (error.stdout) {
+        const lines = error.stdout.split('\n');
+        let processedEntries = 0;
+        
+        for (const line of lines) {
+          if (line.startsWith('- ') || line.startsWith('Extracting  ')) {
+            processedEntries++;
+          }
+        }
+        
+        if (processedEntries > 0) {
+          extracted = processedEntries;
+          errors.push(`Extraction completed with warnings: ${error.message}`);
+        } else {
+          throw { status: 500, message: `7z extraction failed: ${error.message}` };
+        }
+      } else {
+        throw { status: 500, message: `7z extraction failed: ${error.message}` };
+      }
+    }
+    
+    // Count skipped entries
+    skipped = allEntries.filter((e) => e._skip).length;
+    
+    // Report final state
+    onProgress?.(totalEntries, totalEntries, null, totalBytes, totalBytes);
+    
+    return {
+      success: errors.length === 0,
+      extracted,
+      skipped,
+      errors,
+    };
+  } catch (error) {
+    console.error('7z extraction error:', error);
+    return {
+      success: false,
+      error: error.message || '7z extraction failed',
+      extracted,
+      skipped,
+      errors: [...errors, error.message],
+    };
+  }
+}
+
+/**
  * Get archive metadata without extracting
  * 
  * @param {string} archivePath - Archive path (relative to root)
@@ -500,6 +716,27 @@ export async function extractArchive({
 export async function getArchiveInfo(archivePath) {
   try {
     const { absolutePath } = await validatePath(archivePath);
+    const format = detectArchiveFormat(archivePath);
+    
+    if (format?.id === '7z') {
+      // Use 7z.exe for 7z archives
+      const listing = await listSevenZipArchive(absolutePath);
+      return {
+        success: true,
+        data: {
+          totalEntries: listing.entries.length,
+          totalFiles: listing.entries.filter((e) => !e.isDirectory).length,
+          totalDirs: listing.entries.filter((e) => e.isDirectory).length,
+          totalSize: listing.totalSize,
+          compressedSize: listing.totalCompressed,
+          ratio: listing.totalSize > 0
+            ? ((1 - listing.totalCompressed / listing.totalSize) * 100).toFixed(1) + '%'
+            : '0%',
+        },
+      };
+    }
+    
+    // Default: use AdmZip for ZIP files
     const zip = new AdmZip(absolutePath);
     const entries = zip.getEntries();
     
