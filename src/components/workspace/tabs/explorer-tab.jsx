@@ -1130,15 +1130,31 @@ export function ExplorerTabContent({ tab }) {
         break;
       case "extract-here":
         // Extract directly to current directory
-        fetch("/api/files/archive/extract", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            archivePath: file.path,
-            destPath: currentPath || ".",
-            conflictStrategy: "skip",
-          }),
-        }).then(() => handleRefresh());
+        (async () => {
+          try {
+            const response = await fetch("/api/files/archive/extract", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                archivePath: file.path,
+                destPath: currentPath || ".",
+                conflictStrategy: "skip",
+              }),
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+              throw new Error(data.error || 'Extraction failed');
+            }
+            
+            toast.success(`Extracted "${file.name}" successfully`);
+            handleRefresh();
+          } catch (err) {
+            console.error('Extract here error:', err);
+            toast.error(err.message || 'Failed to extract archive');
+          }
+        })();
         break;
       case "extract-to":
         setExtractDialog({

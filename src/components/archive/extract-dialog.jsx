@@ -149,12 +149,17 @@ export function ExtractDialog({
         const response = await fetch(
           `/api/files/archive?path=${encodeURIComponent(archivePath)}`
         );
-        if (response.ok) {
-          const data = await response.json();
-          setArchiveInfo(data.data);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to read archive');
         }
+        
+        const data = await response.json();
+        setArchiveInfo(data.data);
       } catch (err) {
         console.error('Failed to load archive info:', err);
+        setError(err.message || 'Failed to read archive');
       } finally {
         setFetchingInfo(false);
       }
