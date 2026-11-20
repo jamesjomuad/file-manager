@@ -22,7 +22,7 @@ export function UploadQueue() {
   const stats = getStats();
   const autoClearTimerRef = useRef(null);
 
-  // Auto-clear completed uploads after 3 seconds
+  // Auto-clear completed uploads after 5 seconds
   useEffect(() => {
     // Clear any existing timer
     if (autoClearTimerRef.current) {
@@ -30,11 +30,15 @@ export function UploadQueue() {
       autoClearTimerRef.current = null;
     }
 
-    // If we have items and all are complete or error, set auto-clear timer
-    if (uploadQueue.length > 0 && stats.uploading === 0 && stats.pending === 0) {
+    // Only auto-clear if ALL items are in a terminal state (complete or error)
+    // and there are no active uploads, pending items, or conflicts
+    const hasOnlyTerminal = uploadQueue.length > 0 &&
+      uploadQueue.every((item) => item.status === 'complete' || item.status === 'error');
+
+    if (hasOnlyTerminal) {
       autoClearTimerRef.current = setTimeout(() => {
         clearQueue();
-      }, 3000);
+      }, 5000);
     }
 
     // Cleanup timer on unmount
@@ -43,7 +47,7 @@ export function UploadQueue() {
         clearTimeout(autoClearTimerRef.current);
       }
     };
-  }, [uploadQueue.length, stats.uploading, stats.pending, clearQueue]);
+  }, [uploadQueue, clearQueue]);
 
   if (uploadQueue.length === 0) return null;
 
