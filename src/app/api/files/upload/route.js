@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { Readable } from 'stream';
+import Busboy from '@fastify/busboy';
 import { validatePath, ROOT_DIR } from '@/lib/filesystem/security';
 import { sanitizeFilename } from '@/lib/filesystem/utils';
 
@@ -11,15 +13,64 @@ import { sanitizeFilename } from '@/lib/filesystem/utils';
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '52428800', 10);
 
 /**
- * Validate file size
- * @param {File} file - File object from FormData
- * @throws {Error} If validation fails
+ * Parse multipart/form-data using Busboy (more lenient than Next.js built-in parser)
+ * @param {Request} request - HTTP request
+ * @returns {Promise<{files: Array<{name: string, data: Buffer, type: string}>, fields: Object}>}
  */
-function validateFile(file) {
-  // Check file size only - all file types are allowed
-  if (file.size > MAX_FILE_SIZE) {
-    throw Object.assign(new Error(`File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB (max ${MAX_FILE_SIZE / 1024 / 1024}MB)`), { status: 413 });
-  }
+async function parseFormData(request) {
+  return new Promise((resolve, reject) => {
+    const files = [];
+    const fields = {};
+    
+    const busboy = Busboy({
+      headers: {
+        'content-type': request.headers.get('content-type') || '',
+      },
+      limits: {
+        fileSize: MAX_FILE_SIZE,
+      },
+    });
+
+    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+      const chunks = [];
+      let size = 0;
+
+      file.on('data', (chunk) => {
+        chunks.push(chunk);
+        size += chunk.length;
+      });
+
+      file.on('end', () => {
+        files.push({
+          name: filename,
+          data: Buffer.concat(chunks),
+          type: mimetype,
+          size,
+        });
+      });
+
+      file.on('error', (err) => {
+        reject(err);
+      });
+    });
+
+    busboy.on('field', (fieldname, value) => {
+      fields[fieldname] = value;
+    });
+
+    busboy.on('finish', () => {
+      resolve({ files, fields });
+    });
+
+    busboy.on('error', (err) => {
+      reject(err);
+    });
+
+    // Pipe request body to busboy
+    // Convert Web Stream to Node.js stream
+    const nodeStream = Readable.fromWeb(request.body);
+    nodeStream.pipe(busboy);
+  });
 }
 
 /**
@@ -30,9 +81,9 @@ function validateFile(file) {
  */
 export async function POST(request) {
   try {
-    const formData = await request.formData();
-    const files = formData.getAll('file');
-    const destPath = formData.get('path') || '';
+    // Parse multipart form data using Busboy
+    const { files, fields } = await parseFormData(request);
+    const destPath = fields.path || '';
 
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -48,8 +99,13 @@ export async function POST(request) {
     const results = [];
     for (const file of files) {
       try {
-        // Validate file
-        validateFile(file);
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE) {
+          throw Object.assign(
+            new Error(`File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB (max ${MAX_FILE_SIZE / 1024 / 1024}MB)`),
+            { status: 413 }
+          );
+        }
 
         // Sanitize filename
         const sanitized = sanitizeFilename(file.name);
@@ -66,10 +122,8 @@ export async function POST(request) {
           throw Object.assign(new Error('Invalid file path'), { status: 403 });
         }
 
-        // Convert File to Buffer and write
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        await fs.writeFile(filePath, buffer);
+        // Write file buffer to disk
+        await fs.writeFile(filePath, file.data);
 
         // Get file stats
         const stats = await fs.stat(filePath);
