@@ -39,5 +39,7 @@ export function formatFileSize(bytes) {
  * @returns {string}
  */
 export function sanitizeFilename(name) {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^\.+/, '_');
+  // Replace invalid characters with underscore
+  // Allow leading dots (e.g., .env, .gitignore)
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
