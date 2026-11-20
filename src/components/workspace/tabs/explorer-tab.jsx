@@ -40,6 +40,8 @@ import {
   RiClipboardLine,
   RiFolderTransferLine,
   RiArrowGoForwardLine,
+  RiStarLine,
+  RiStarFill,
 } from "@remixicon/react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { toast } from "@/components/base/toast/toast";
@@ -1185,8 +1187,11 @@ export function ExplorerTabContent({ tab }) {
       case "move-to":
         handleMoveTo(file);
         break;
+      case "favorite":
+        toggleFavorite(file.path);
+        break;
     }
-  }, [handlePreview, handleRename, openTab, currentPath, handleRefresh, handleCopyPath, handleCopyRelativePath, handleCopyFilename, handleCut, handleCopyToClipboard, handlePaste, handleMoveTo]);
+  }, [handlePreview, handleRename, openTab, currentPath, handleRefresh, handleCopyPath, handleCopyRelativePath, handleCopyFilename, handleCut, handleCopyToClipboard, handlePaste, handleMoveTo, toggleFavorite]);
 
   /**
    * Render context menu for a file (used by FileList/FileGrid)
@@ -1228,6 +1233,12 @@ export function ExplorerTabContent({ tab }) {
         )}
         <ContextMenuItem id="rename" icon={RiEditLine}>
           Rename
+        </ContextMenuItem>
+        <ContextMenuItem 
+          id="favorite" 
+          icon={isFavorite(file.path) ? RiStarFill : RiStarLine}
+        >
+          {isFavorite(file.path) ? "Remove from Favorites" : "Add to Favorites"}
         </ContextMenuItem>
         <ContextMenuSeparator />
         {/* Clipboard operations */}
@@ -1279,7 +1290,7 @@ export function ExplorerTabContent({ tab }) {
         </ContextMenuItem>
       </ContextMenu>
     );
-  }, [handleContextAction, clipboardItems, clipboardMode]);
+  }, [handleContextAction, clipboardItems, clipboardMode, isFavorite]);
 
   /**
    * Keyboard shortcuts
