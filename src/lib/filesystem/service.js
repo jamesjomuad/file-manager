@@ -79,6 +79,19 @@ export async function writeFile(filePath, content) {
   const fullPath = path.join(parentPath, path.basename(filePath));
   // Validate the final path is within root (no existence check needed)
   ensureWithinRoot(fullPath);
+  // Refuse to overwrite a directory with a file (EISDIR)
+  try {
+    const existing = await fs.stat(fullPath);
+    if (existing.isDirectory()) {
+      throw Object.assign(
+        new Error(`A directory with this name already exists: ${path.basename(filePath)}`),
+        { status: 409 }
+      );
+    }
+  } catch (err) {
+    if (err.status === 409) throw err;
+    // Does not exist — fine, will be created
+  }
   await fs.writeFile(fullPath, content, 'utf-8');
   const stats = await fs.stat(fullPath);
   return {

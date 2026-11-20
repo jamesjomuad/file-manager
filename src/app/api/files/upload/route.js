@@ -122,6 +122,20 @@ export async function POST(request) {
           throw Object.assign(new Error('Invalid file path'), { status: 403 });
         }
 
+        // Refuse to overwrite a directory with a file (EISDIR)
+        try {
+          const existing = await fs.stat(filePath);
+          if (existing.isDirectory()) {
+            throw Object.assign(
+              new Error(`A directory with this name already exists: ${sanitized}`),
+              { status: 409 }
+            );
+          }
+        } catch (err) {
+          if (err.status === 409) throw err;
+          // Does not exist — fine, will be created
+        }
+
         // Write file buffer to disk
         await fs.writeFile(filePath, file.data);
 
