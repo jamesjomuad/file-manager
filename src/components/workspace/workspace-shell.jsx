@@ -8,30 +8,34 @@ import {
   RiPushpinLine,
   RiPushpinFill,
   RiMoreLine,
+  RiFolderLine,
 } from "@remixicon/react";
+import { resolveFileIcon } from "@/lib/file-icons/file-icon-registry";
 
 /**
- * File-type icon mapping for tab display
- * @param {string} type
- * @param {string} [path]
- * @returns {string} Icon class name
+ * Resolve tab icon based on tab type and file path
+ * @param {Object} tab
+ * @returns {{type: 'component'|'remix', icon?: React.Component, color?: string, cssClass?: string}}
  */
-function getTabIcon(type, path) {
-  switch (type) {
+function getTabIconDef(tab) {
+  switch (tab.type) {
     case "explorer":
-      return "ri-folder-line";
+      return { type: "remix", icon: RiFolderLine, color: "#FBBF24" };
     case "editor":
-      return "ri-code-line";
-    case "image-viewer":
-      return "ri-image-line";
     case "text-viewer":
-      return "ri-file-text-line";
     case "pdf-viewer":
-      return "ri-file-pdf-line";
+    case "image-viewer": {
+      // Extract filename from path
+      const filePath = tab.path || tab.title || "";
+      const filename = filePath.split("/").pop() || filePath;
+      const ext = filename.includes(".") ? filename.split(".").pop() : "";
+      const iconDef = resolveFileIcon({ name: filename, extension: ext });
+      return { type: "component", icon: iconDef.icon, color: iconDef.color };
+    }
     case "archive":
-      return "ri-file-zip-line";
+      return { type: "remix", icon: resolveFileIcon({ extension: "zip" }).icon, color: "#78716C" };
     default:
-      return "ri-file-line";
+      return { type: "remix", icon: resolveFileIcon({}).icon, color: "#6B7280" };
   }
 }
 
@@ -51,7 +55,7 @@ const WorkspaceTabItem = memo(function WorkspaceTabItem({
   onDragEnd,
   isDragOver,
 }) {
-  const icon = getTabIcon(tab.type, tab.path);
+  const iconDef = getTabIconDef(tab);
 
   return (
     <div
@@ -73,7 +77,11 @@ const WorkspaceTabItem = memo(function WorkspaceTabItem({
       )}
     >
       {/* Icon */}
-      <i className={cx(icon, "text-base flex-shrink-0")} aria-hidden />
+      {iconDef.type === 'component' ? (
+        <iconDef.icon className="w-4 h-4 flex-shrink-0" style={{ color: iconDef.color }} aria-hidden />
+      ) : (
+        <iconDef.icon className="w-4 h-4 flex-shrink-0" style={{ color: iconDef.color }} aria-hidden />
+      )}
 
       {/* Title with dirty indicator */}
       <span className="flex-1 truncate text-sm flex items-center gap-1.5">

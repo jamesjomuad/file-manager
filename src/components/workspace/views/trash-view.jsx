@@ -285,7 +285,7 @@ export function TrashView() {
                     >
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
-                          <FileIcon type={item.type} size="sm" />
+                          <FileIcon type={item.type} name={item.name} size="sm" />
                           <span className="text-body-regular text-text-primary truncate">{item.name}</span>
                         </div>
                       </td>
@@ -329,7 +329,7 @@ export function TrashView() {
                       isSelected && "ring-2 ring-accent-500 bg-background-selection"
                     )}
                   >
-                    <FileIcon type={item.type} size="lg" />
+                    <FileIcon type={item.type} name={item.name} size="lg" />
                     <div className="text-center w-full">
                       <span className="text-caption-1-medium text-text-primary truncate block w-full">{item.name}</span>
                       <span className="text-caption-2-medium text-text-secondary truncate block w-full">{formatRelativeTime(item.deletedAt)}</span>

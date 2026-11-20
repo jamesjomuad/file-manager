@@ -3,16 +3,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cx } from '@/utils/cx';
 import {
-  RiFolderLine,
-  RiImageLine,
-  RiFileTextLine,
-  RiCodeLine,
-  RiVideoLine,
-  RiMusicLine,
-  RiFileZipLine,
-  RiFileLine,
   RiCloseLine,
+  RiFileLine,
 } from '@remixicon/react';
+import { FileIcon } from '@/components/file-manager/file-icon';
 
 /**
  * Quick file search modal (Ctrl+P)
@@ -204,7 +198,7 @@ export function QuickOpenModal({ isOpen, onClose, onSelect }) {
                   : 'hover:bg-background-secondary-hover/50'
               )}
             >
-              <FileResultIcon file={file} />
+              <FileIcon type={file.type} name={file.name} extension={file.extension} size="sm" />
               <div className="flex-1 min-w-0">
                 <div className="text-body-regular text-text-primary truncate">
                   {file.name}
@@ -229,34 +223,5 @@ export function QuickOpenModal({ isOpen, onClose, onSelect }) {
 
 /**
  * Render the appropriate icon for a file result
+ * Now handled by the centralized FileIcon component
  */
-function FileResultIcon({ file }) {
-  const iconClass = 'w-5 h-5 shrink-0';
-
-  if (file.type === 'directory') {
-    return <RiFolderLine className={cx(iconClass, 'text-foreground-icon-accent')} />;
-  }
-
-  const ext = file.extension?.toLowerCase() || '';
-
-  if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.avif', '.ico'].includes(ext)) {
-    return <RiImageLine className={cx(iconClass, 'text-foreground-icon-accent')} />;
-  }
-  if (['.mp4', '.avi', '.mov', '.webm', '.mkv'].includes(ext)) {
-    return <RiVideoLine className={cx(iconClass, 'text-foreground-icon-accent')} />;
-  }
-  if (['.mp3', '.wav', '.flac', '.ogg', '.aac'].includes(ext)) {
-    return <RiMusicLine className={cx(iconClass, 'text-foreground-icon-accent')} />;
-  }
-  if (['.zip', '.tar', '.gz', '.7z', '.rar'].includes(ext)) {
-    return <RiFileZipLine className={cx(iconClass, 'text-foreground-icon-accent')} />;
-  }
-  if (['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.c', '.cpp', '.go', '.rs', '.php', '.rb', '.css', '.html', '.json', '.xml', '.yaml', '.yml', '.sql', '.sh', '.bash'].includes(ext)) {
-    return <RiCodeLine className={cx(iconClass, 'text-foreground-icon-accent')} />;
-  }
-  if (['.txt', '.md', '.doc', '.docx', '.pdf', '.csv', '.log'].includes(ext)) {
-    return <RiFileTextLine className={cx(iconClass, 'text-foreground-icon-accent')} />;
-  }
-
-  return <RiFileLine className={cx(iconClass, 'text-text-tertiary')} />;
-}

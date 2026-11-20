@@ -83,6 +83,7 @@ export const ThumbnailImage = memo(function ThumbnailImage({
       )}>
         <FileIcon
           type={file.type}
+          name={file.name}
           extension={file.extension}
           size={size === 'small' ? 'sm' : 'lg'}
         />
@@ -109,6 +110,7 @@ export const ThumbnailImage = memo(function ThumbnailImage({
           ) : (
             <FileIcon
               type={file.type}
+              name={file.name}
               extension={file.extension}
               size={size === 'small' ? 'sm' : 'lg'}
               className="opacity-40"
@@ -122,6 +124,7 @@ export const ThumbnailImage = memo(function ThumbnailImage({
         <div className="absolute inset-0 flex items-center justify-center">
           <FileIcon
             type={file.type}
+            name={file.name}
             extension={file.extension}
             size={size === 'small' ? 'sm' : 'lg'}
           />

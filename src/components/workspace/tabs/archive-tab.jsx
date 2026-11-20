@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { cx } from "@/utils/cx";
 import {
   RiFileLine,
-  RiFolderLine,
   RiFileDownloadLine,
   RiFolderDownloadLine,
   RiArrowLeftLine,
@@ -16,6 +15,7 @@ import {
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { ExtractDialog } from "@/components/archive/extract-dialog";
+import { FileIcon } from "@/components/file-manager/file-icon";
 
 /**
  * Format bytes to human-readable string
@@ -433,11 +433,7 @@ export function ArchiveTabContent({ tab, onNavigate }) {
                     )}
                   </button>
 
-                  {entry.type === "directory" ? (
-                    <RiFolderLine className="w-4 h-4 text-foreground-icon-accent shrink-0" />
-                  ) : (
-                    <RiFileLine className="w-4 h-4 text-foreground-icon-accent shrink-0" />
-                  )}
+                  <FileIcon type={entry.type} name={entry.name} size="sm" className="shrink-0" />
                   <span className="text-caption-1-regular text-text-primary truncate flex-1">
                     {entry.name}
                   </span>

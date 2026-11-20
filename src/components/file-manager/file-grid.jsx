@@ -117,6 +117,7 @@ export function FileGrid({
               ) : (
                 <FileIcon
                   type={file.type}
+                  name={file.name}
                   extension={file.extension}
                   size="lg"
                 />

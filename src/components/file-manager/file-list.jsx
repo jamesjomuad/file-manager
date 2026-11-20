@@ -215,6 +215,7 @@ export function FileList({
                     ) : (
                       <FileIcon
                         type={file.type}
+                        name={file.name}
                         extension={file.extension}
                         size="sm"
                       />
