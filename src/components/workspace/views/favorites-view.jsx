@@ -8,6 +8,7 @@ import { Button } from "@/components/base/buttons/button";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
 import { useWorkspace } from "@/contexts/workspace-context";
+import { useExplorerStore } from "@/stores/explorer-store";
 import { isSupportedImageFormat } from "@/lib/image/image-utils";
 import { RiStarLine, RiDeleteBinLine, RiRefreshLine } from "@remixicon/react";
 
@@ -19,8 +20,8 @@ export function FavoritesView() {
   const navigate = useNavigate();
   const { favorites, removeFavorite, toggleFavorite, clearFavorites } = useFavorites();
   const { addRecent } = useRecentFiles();
+  const { viewMode, setViewMode } = useExplorerStore();
 
-  const [viewMode, setViewMode] = useState("grid");
   const [fileMetadata, setFileMetadata] = useState([]);
   const [missingPaths, setMissingPaths] = useState(new Set());
   const [loading, setLoading] = useState(true);

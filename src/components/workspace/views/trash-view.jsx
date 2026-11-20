@@ -5,6 +5,7 @@ import { FileIcon } from "@/components/file-manager/file-icon";
 import { ConfirmDialog } from "@/components/file-manager/confirm-dialog";
 import { Button } from "@/components/base/buttons/button";
 import { useTrashStore } from "@/stores/trash-store";
+import { useExplorerStore } from "@/stores/explorer-store";
 import { cx } from "@/utils/cx";
 import {
   RiArrowGoBackLine,
@@ -50,7 +51,7 @@ function formatSize(bytes) {
 export function TrashView() {
   const [trashItems, setTrashItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState("list");
+  const { viewMode, setViewMode } = useExplorerStore();
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [confirmDialog, setConfirmDialog] = useState(null);
 

@@ -22,6 +22,7 @@ import { useRecentFiles } from "@/hooks/use-recent-files";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useTrashStore } from "@/stores/trash-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
+import { useExplorerStore } from "@/stores/explorer-store";
 import { canPreview, isImage, isPDF, isText } from "@/lib/file-type";
 import { isSupportedImageFormat } from "@/lib/image/image-utils";
 import {
@@ -106,12 +107,10 @@ export function ExplorerTabContent({ tab }) {
   const { items: clipboardItems, mode: clipboardMode, cut: clipboardCut, copy: clipboardCopy, clear: clipboardClear, isCut: isClipboardCut } = useClipboardStore();
 
   const [files, setFiles] = useState([]);
-  const [viewMode, setViewMode] = useState("grid");
+  const { viewMode, setViewMode, sortBy, setSortBy, sortOrder, setSortOrder } = useExplorerStore();
   const [selectedFiles, setSelectedFiles] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
   const [lastSelectedFile, setLastSelectedFile] = useState(null);
 
   // Confirmation dialog state
