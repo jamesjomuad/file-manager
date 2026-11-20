@@ -152,6 +152,16 @@ export async function listArchive(absolutePath) {
     return { entries, totalSize, totalCompressed };
   } catch (error) {
     if (error.status) throw error;
+    // 7z can exit non-zero (warnings=1, fatal=2) on truncated/corrupt archives
+    // while still producing a usable listing — use it if we got any entries.
+    if (error.stdout) {
+      const entries = parseDetailedListing(error.stdout);
+      if (entries.length > 0) {
+        const totalSize = entries.reduce((sum, e) => sum + (e.isDirectory ? 0 : e.size), 0);
+        const totalCompressed = entries.reduce((sum, e) => sum + (e.isDirectory ? 0 : e.compressedSize), 0);
+        return { entries, totalSize, totalCompressed };
+      }
+    }
     // Extract error message from stderr if available
     const errorMessage = error.stderr || error.message || 'Unknown error';
     throw { status: 500, message: `Failed to list archive: ${errorMessage}` };
@@ -178,11 +188,17 @@ export async function extractEntry(absolutePath, entryPath) {
   const tempDir = await fs.mkdtemp(nodePath.join(os.tmpdir(), '7z-entry-'));
 
   try {
-    await execFileAsync(
-      sevenZip,
-      ['e', '-y', `-o${tempDir}`, absolutePath, entryPath],
-      { maxBuffer: 50 * 1024 * 1024, timeout: 60000 }
-    );
+    try {
+      await execFileAsync(
+        sevenZip,
+        ['e', '-y', `-o${tempDir}`, absolutePath, entryPath],
+        { maxBuffer: 50 * 1024 * 1024, timeout: 60000 }
+      );
+    } catch (error) {
+      // Non-zero exit (warnings=1, fatal=2 on truncated archives) — the entry
+      // may still have been extracted; verified by the readFile below.
+      if (!error.stdout && !error.stderr) throw error;
+    }
 
     // The extracted file will be at tempDir/<basename>
     const basename = entryPath.split('/').pop();

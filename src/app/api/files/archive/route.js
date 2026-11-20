@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
+import fs from 'fs/promises';
 import AdmZip from 'adm-zip';
 import { validatePath, ROOT_DIR } from '@/lib/filesystem/security';
 import { formatFileSize } from '@/lib/filesystem/utils';
@@ -54,7 +55,13 @@ export async function GET(request) {
       return await handleSevenZip(absolutePath, entryName);
     }
 
-    // Default: ZIP
+    // Default: ZIP — but adm-zip cannot open files >= 2 GiB,
+    // so fall back to 7z.exe for large ZIP archives.
+    const stats = await fs.stat(absolutePath);
+    if (stats.size >= 0x80000000) {
+      return await handleSevenZip(absolutePath, entryName);
+    }
+
     return handleZip(absolutePath, entryName);
   } catch (error) {
     console.error('GET /api/files/archive error:', error);

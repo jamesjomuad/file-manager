@@ -43,7 +43,7 @@ export const CONFLICT_STRATEGIES = {
  */
 const LIMITS = {
   maxFileSize: 500 * 1024 * 1024, // 500MB per file
-  maxArchiveSize: 2 * 1024 * 1024 * 1024, // 2GB total archive
+  maxArchiveSize: 10 * 1024 * 1024 * 1024, // 10GB uncompressed total
   maxEntryCount: 200000, // 200k entries
   maxDecompressionRatio: 100, // 100x decompression ratio
   blockedExtensions: new Set(['.exe', '.bat', '.cmd', '.scr', '.msi', '.com']),
@@ -369,7 +369,19 @@ export async function extractArchive({
     if (archiveStat.isDirectory()) {
       throw { status: 400, message: 'Archive path is a directory' };
     }
-    
+
+    // adm-zip cannot open files >= 2 GiB — fall back to 7z.exe for large ZIPs
+    if (archiveStat.size >= 0x80000000) {
+      return extractSevenZip({
+        archivePath,
+        destPath,
+        conflictStrategy,
+        operationId,
+        onProgress,
+        cancelToken,
+      });
+    }
+
     // Create destination directory if it doesn't exist
     try {
       await fs.mkdir(absDestPath, { recursive: true });
@@ -626,7 +638,7 @@ export async function extractSevenZip({
     // Then we report progress based on what was extracted
     
     // Build extraction command
-    const args = ['x', '-y'];
+    const args = ['x', '-y', '-bb1']; // -bb1: log each extracted file for progress parsing
     
     // Handle conflict strategies
     if (conflictStrategy === CONFLICT_STRATEGIES.skip) {
@@ -674,8 +686,9 @@ export async function extractSevenZip({
       
       extracted = processedEntries;
     } catch (error) {
-      // 7z.exe might return non-zero for warnings (like skipped files)
-      // Check if files were actually extracted
+      // 7z.exe exits non-zero (1=warnings, 2=fatal) on truncated/corrupt archives
+      // even though it extracted everything it could. With -bb1, stdout lists
+      // each extracted file as "- <path>" — use that to report partial success.
       if (error.stdout) {
         const lines = error.stdout.split('\n');
         let processedEntries = 0;
@@ -688,9 +701,10 @@ export async function extractSevenZip({
         
         if (processedEntries > 0) {
           extracted = processedEntries;
-          errors.push(`Extraction completed with warnings: ${error.message}`);
+          const warning = (error.stderr || error.message || '').split('\n').find((l) => l.trim()) || 'extraction finished with warnings';
+          errors.push(`Extraction completed with warnings: ${warning.trim()}`);
         } else {
-          throw { status: 500, message: `7z extraction failed: ${error.message}` };
+          throw { status: 500, message: `7z extraction failed: ${error.stderr || error.message}` };
         }
       } else {
         throw { status: 500, message: `7z extraction failed: ${error.message}` };
@@ -731,9 +745,12 @@ export async function getArchiveInfo(archivePath) {
   try {
     const { absolutePath } = await validatePath(archivePath);
     const format = detectArchiveFormat(archivePath);
-    
-    if (format?.id === '7z') {
-      // Use 7z.exe for 7z archives
+
+    // 7z.exe handles both .7z and large ZIPs (adm-zip refuses files >= 2 GiB)
+    const stats = await fs.stat(absolutePath);
+    const useSevenZip = format?.id === '7z' || stats.size >= 0x80000000;
+
+    if (useSevenZip) {
       const listing = await listSevenZipArchive(absolutePath);
       return {
         success: true,
