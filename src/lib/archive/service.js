@@ -321,6 +321,7 @@ export async function extractArchive({
   entries: selectedEntries,
   conflictStrategy = CONFLICT_STRATEGIES.skip,
   preserveStructure = true,
+  operationId,
   onProgress,
   cancelToken,
 }) {
@@ -380,6 +381,11 @@ export async function extractArchive({
     
     const totalEntries = entriesToExtract.length;
     let processedEntries = 0;
+    let extractedBytes = 0;
+    const totalBytes = entriesToExtract.reduce((sum, e) => sum + (e.isDirectory ? 0 : e.header.size), 0);
+    
+    // Report initial state with totals
+    onProgress?.(0, totalEntries, null, 0, totalBytes);
     
     // Extract entries one by one
     for (const entry of entriesToExtract) {
@@ -457,13 +463,14 @@ export async function extractArchive({
           const buffer = entry.getData();
           await fs.writeFile(targetPath, buffer);
           extracted++;
+          extractedBytes += entry.header.size;
         } catch (err) {
           errors.push(`Failed to extract "${entryName}": ${err.message}`);
         }
       }
       
       processedEntries++;
-      onProgress?.(processedEntries, totalEntries, entryName);
+      onProgress?.(processedEntries, totalEntries, entryName, extractedBytes, totalBytes);
     }
     
     return {

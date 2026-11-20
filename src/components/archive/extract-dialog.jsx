@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { cx } from '@/utils/cx';
 import { Button } from '@/components/base/buttons/button';
 import {
@@ -11,6 +11,8 @@ import {
   RiFolderLine,
   RiLoaderLine,
   RiFileLine,
+  RiStopCircleLine,
+  RiTimerLine,
 } from '@remixicon/react';
 import { formatFileSize } from '@/lib/filesystem/utils';
 
@@ -25,7 +27,50 @@ const CONFLICT_OPTIONS = [
 ];
 
 /**
- * Extract dialog — extract a ZIP archive to a destination
+ * Format elapsed time in human-readable format
+ * @param {number} ms - Milliseconds
+ * @returns {string}
+ */
+function formatElapsedTime(ms) {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  }
+  return `${seconds}s`;
+}
+
+/**
+ * Status label mapping
+ */
+const STATUS_LABELS = {
+  preparing: 'Preparing...',
+  extracting: 'Extracting...',
+  finalizing: 'Finalizing...',
+  completed: 'Completed',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+};
+
+/**
+ * Status icon color mapping
+ */
+const STATUS_COLORS = {
+  preparing: 'text-accent-500',
+  extracting: 'text-accent-500',
+  finalizing: 'text-accent-500',
+  completed: 'text-text-success',
+  failed: 'text-text-error',
+  cancelled: 'text-text-warning',
+};
+
+/**
+ * Extract dialog with real-time progress tracking
  * 
  * @param {Object} props
  * @param {boolean} props.open - Whether dialog is visible
@@ -51,10 +96,18 @@ export function ExtractDialog({
   const [loading, setLoading] = useState(false);
   const [fetchingInfo, setFetchingInfo] = useState(false);
   const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
   const [archiveInfo, setArchiveInfo] = useState(null);
   const [folders, setFolders] = useState([]);
   const [loadingFolders, setLoadingFolders] = useState(false);
+  
+  // Progress state
+  const [operationId, setOperationId] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  
+  // Refs
+  const eventSourceRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   // Reset state when opened
   const resetState = useCallback(() => {
@@ -63,10 +116,28 @@ export function ExtractDialog({
     setPreserveStructure(true);
     setLoading(false);
     setError(null);
-    setResult(null);
     setArchiveInfo(null);
     setFolders([]);
+    setOperationId(null);
+    setProgress(null);
+    setCancelling(false);
   }, [currentPath]);
+
+  // Cleanup on close
+  useEffect(() => {
+    if (!open) {
+      // Clean up event source
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      resetState();
+    }
+  }, [open, resetState]);
 
   // Load archive info
   useEffect(() => {
@@ -114,15 +185,78 @@ export function ExtractDialog({
     loadFolders();
   }, [open]);
 
+  // Subscribe to progress updates via SSE
+  const subscribeToProgress = useCallback((opId) => {
+    const url = `/api/files/archive/extract?operationId=${encodeURIComponent(opId)}`;
+    const eventSource = new EventSource(url);
+    eventSourceRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'end') {
+          eventSource.close();
+          eventSourceRef.current = null;
+          return;
+        }
+        
+        if (data.type === 'heartbeat') {
+          // Just keep connection alive
+          return;
+        }
+        
+        if (data.type === 'progress') {
+          setProgress(data);
+          
+          // If terminal state, close connection
+          if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+            eventSource.close();
+            eventSourceRef.current = null;
+            
+            if (data.status === 'completed') {
+              onComplete?.({
+                extracted: data.extractedFiles,
+                skipped: data.skippedFiles,
+                errors: data.errors,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to parse progress event:', err);
+      }
+    };
+
+    eventSource.onerror = () => {
+      console.error('SSE connection error');
+      eventSource.close();
+      eventSourceRef.current = null;
+      
+      // Check if operation is still running
+      setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/files/archive/extract?operationId=${opId}`);
+          if (response.ok) {
+            const data = await response.json();
+            setProgress(data);
+          }
+        } catch {
+          // Ignore reconnection errors
+        }
+      }, 1000);
+    };
+  }, [onComplete]);
+
   if (!open) return null;
 
   /**
-   * Handle extraction
+   * Handle extraction start
    */
   const handleExtract = async () => {
     setLoading(true);
     setError(null);
-    setResult(null);
+    setProgress(null);
 
     try {
       const response = await fetch('/api/files/archive/extract', {
@@ -143,26 +277,60 @@ export function ExtractDialog({
         throw new Error(data.error || 'Extraction failed');
       }
 
-      setResult(data.data);
-      onComplete?.(data.data);
+      // Store operation ID and subscribe to progress
+      setOperationId(data.operationId);
+      subscribeToProgress(data.operationId);
     } catch (err) {
       setError(err.message || 'Extraction failed');
-    } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Handle cancellation
+   */
+  const handleCancel = async () => {
+    if (!operationId || cancelling) return;
+    
+    setCancelling(true);
+    
+    try {
+      const response = await fetch('/api/files/archive/extract/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationId }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to cancel');
+      }
+    } catch (err) {
+      console.error('Cancellation failed:', err);
+      setError(err.message || 'Failed to cancel extraction');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handleClose = () => {
-    resetState();
+    // If operation is running, cancel it first
+    if (operationId && progress && !['completed', 'failed', 'cancelled'].includes(progress.status)) {
+      handleCancel();
+    }
     onClose();
   };
+
+  // Determine if we're in progress mode
+  const isExtracting = loading || (operationId && progress && !['completed', 'failed', 'cancelled'].includes(progress.status));
+  const isTerminal = progress && ['completed', 'failed', 'cancelled'].includes(progress.status);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-background-overlay/80"
-        onClick={handleClose}
+        onClick={isTerminal ? handleClose : undefined}
       />
 
       {/* Dialog */}
@@ -181,7 +349,7 @@ export function ExtractDialog({
             </div>
             <div>
               <h3 className="text-title-3-semibold text-text-primary">
-                Extract Archive
+                {isExtracting || isTerminal ? 'Extracting Archive' : 'Extract Archive'}
               </h3>
               <p className="text-caption-1-regular text-text-secondary">
                 {archiveName}
@@ -194,85 +362,49 @@ export function ExtractDialog({
             iconOnly
             leadingIcon={RiCloseLine}
             onClick={handleClose}
+            disabled={isExtracting && !isTerminal}
             aria-label="Close"
           />
         </div>
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {/* Archive info */}
-          {fetchingInfo ? (
-            <div className="flex items-center gap-2 text-caption-1-regular text-text-tertiary">
-              <RiLoaderLine className="w-4 h-4 animate-spin" />
-              Reading archive...
-            </div>
-          ) : archiveInfo ? (
-            <div className="rounded-xl bg-background-secondary-default p-3">
-              <div className="grid grid-cols-2 gap-2 text-caption-1-regular">
-                <div>
-                  <span className="text-text-tertiary">Files:</span>{' '}
-                  <span className="text-text-primary">{archiveInfo.totalFiles}</span>
+          {/* Archive info (only show when not extracting) */}
+          {!isExtracting && !isTerminal && (
+            <>
+              {fetchingInfo ? (
+                <div className="flex items-center gap-2 text-caption-1-regular text-text-tertiary">
+                  <RiLoaderLine className="w-4 h-4 animate-spin" />
+                  Reading archive...
                 </div>
-                <div>
-                  <span className="text-text-tertiary">Folders:</span>{' '}
-                  <span className="text-text-primary">{archiveInfo.totalDirs}</span>
-                </div>
-                <div>
-                  <span className="text-text-tertiary">Size:</span>{' '}
-                  <span className="text-text-primary">{archiveInfo.totalSizeFormatted}</span>
-                </div>
-                <div>
-                  <span className="text-text-tertiary">Compression:</span>{' '}
-                  <span className="text-text-primary">{archiveInfo.compressionRatio}</span>
-                </div>
-              </div>
-              {selectedEntries && (
-                <div className="mt-2 text-caption-2-regular text-text-tertiary">
-                  Extracting {selectedEntries.length} selected entries
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {/* Success state */}
-          {result ? (
-            <div className="rounded-xl bg-background-success-subtle border border-border-success p-4">
-              <div className="flex items-start gap-3">
-                <RiCheckboxCircleLine className="w-5 h-5 text-text-success mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <div className="text-body-medium text-text-success mb-1">
-                    Extraction complete
+              ) : archiveInfo ? (
+                <div className="rounded-xl bg-background-secondary-default p-3">
+                  <div className="grid grid-cols-2 gap-2 text-caption-1-regular">
+                    <div>
+                      <span className="text-text-tertiary">Files:</span>{' '}
+                      <span className="text-text-primary">{archiveInfo.totalFiles}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-tertiary">Folders:</span>{' '}
+                      <span className="text-text-primary">{archiveInfo.totalDirs}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-tertiary">Size:</span>{' '}
+                      <span className="text-text-primary">{archiveInfo.totalSizeFormatted}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-tertiary">Compression:</span>{' '}
+                      <span className="text-text-primary">{archiveInfo.compressionRatio}</span>
+                    </div>
                   </div>
-                  <div className="text-caption-1-regular text-text-secondary space-y-0.5">
-                    <div>Extracted: {result.extracted} file{result.extracted !== 1 ? 's' : ''}</div>
-                    {result.skipped > 0 && (
-                      <div>Skipped: {result.skipped} file{result.skipped !== 1 ? 's' : ''}</div>
-                    )}
-                    {result.errors?.length > 0 && (
-                      <div className="text-text-error">
-                        {result.errors.length} error{result.errors.length !== 1 ? 's' : ''}
-                      </div>
-                    )}
-                  </div>
-                  {result.errors?.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="text-caption-2-regular text-text-error cursor-pointer">
-                        Show errors
-                      </summary>
-                      <div className="mt-1 space-y-0.5">
-                        {result.errors.map((err, i) => (
-                          <div key={i} className="text-caption-2-regular text-text-error">
-                            {err}
-                          </div>
-                        ))}
-                      </div>
-                    </details>
+                  {selectedEntries && (
+                    <div className="mt-2 text-caption-2-regular text-text-tertiary">
+                      Extracting {selectedEntries.length} selected entries
+                    </div>
                   )}
                 </div>
-              </div>
-            </div>
-          ) : (
-            <>
+              ) : null}
+
               {/* Destination */}
               <div className="space-y-1.5">
                 <label className="text-body-regular text-text-primary">
@@ -402,11 +534,16 @@ export function ExtractDialog({
               )}
             </>
           )}
+
+          {/* Progress view */}
+          {(isExtracting || isTerminal) && progress && (
+            <ProgressView progress={progress} />
+          )}
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border-button-default shrink-0">
-          {result ? (
+          {isTerminal ? (
             <Button
               variant="primary"
               size="medium"
@@ -414,6 +551,26 @@ export function ExtractDialog({
             >
               Done
             </Button>
+          ) : isExtracting ? (
+            <>
+              <Button
+                variant="ghost"
+                size="medium"
+                leadingIcon={RiStopCircleLine}
+                onClick={handleCancel}
+                disabled={cancelling || !operationId}
+              >
+                {cancelling ? 'Cancelling...' : 'Cancel'}
+              </Button>
+              <Button
+                variant="primary"
+                size="medium"
+                disabled
+                leadingIcon={RiLoaderLine}
+              >
+                {progress?.status === 'preparing' ? 'Preparing...' : 'Extracting...'}
+              </Button>
+            </>
           ) : (
             <>
               <Button
@@ -431,12 +588,152 @@ export function ExtractDialog({
                 onClick={handleExtract}
                 disabled={loading}
               >
-                {loading ? 'Extracting...' : 'Extract'}
+                Extract
               </Button>
             </>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Progress view component showing real-time extraction status
+ * 
+ * @param {Object} props
+ * @param {Object} props.progress - Progress data from SSE
+ */
+function ProgressView({ progress }) {
+  const {
+    status,
+    totalEntries,
+    processedEntries,
+    extractedFiles,
+    skippedFiles,
+    currentEntry,
+    totalBytes,
+    extractedBytes,
+    elapsedMs,
+    errors,
+    progressPercent,
+  } = progress;
+
+  const statusColor = STATUS_COLORS[status] || 'text-accent-500';
+  const statusLabel = STATUS_LABELS[status] || 'Processing...';
+
+  return (
+    <div className="space-y-4">
+      {/* Status header */}
+      <div className="flex items-center gap-3">
+        {status === 'extracting' && (
+          <RiLoaderLine className={cx('w-6 h-6 animate-spin', statusColor)} />
+        )}
+        {status === 'completed' && (
+          <RiCheckboxCircleLine className={cx('w-6 h-6', statusColor)} />
+        )}
+        {status === 'failed' && (
+          <RiErrorWarningLine className={cx('w-6 h-6', statusColor)} />
+        )}
+        {['preparing', 'finalizing'].includes(status) && (
+          <RiLoaderLine className={cx('w-6 h-6 animate-spin', statusColor)} />
+        )}
+        {status === 'cancelled' && (
+          <RiErrorWarningLine className={cx('w-6 h-6', statusColor)} />
+        )}
+        <div className="flex-1">
+          <div className={cx('text-body-medium font-semibold', statusColor)}>
+            {statusLabel}
+          </div>
+          <div className="text-caption-1-regular text-text-secondary">
+            <RiTimerLine className="w-3 h-3 inline me-1" />
+            {formatElapsedTime(elapsedMs)}
+          </div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-caption-1-regular">
+          <span className="text-text-secondary">Progress</span>
+          <span className="text-text-primary font-semibold">{progressPercent}%</span>
+        </div>
+        <div className="w-full h-2 bg-background-secondary-default rounded-full overflow-hidden">
+          <div
+            className="h-full bg-accent-500 transition-all duration-300 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Statistics */}
+      <div className="rounded-xl bg-background-secondary-default p-3 space-y-2">
+        <div className="grid grid-cols-2 gap-2 text-caption-1-regular">
+          <div>
+            <span className="text-text-tertiary">Files extracted:</span>{' '}
+            <span className="text-text-primary font-medium">{extractedFiles}</span>
+          </div>
+          <div>
+            <span className="text-text-tertiary">Progress:</span>{' '}
+            <span className="text-text-primary font-medium">
+              {processedEntries} / {totalEntries}
+            </span>
+          </div>
+          {skippedFiles > 0 && (
+            <div>
+              <span className="text-text-tertiary">Skipped:</span>{' '}
+              <span className="text-text-primary font-medium">{skippedFiles}</span>
+            </div>
+          )}
+          {totalBytes > 0 && (
+            <div>
+              <span className="text-text-tertiary">Size:</span>{' '}
+              <span className="text-text-primary font-medium">
+                {formatFileSize(extractedBytes)} / {formatFileSize(totalBytes)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Current file */}
+        {currentEntry && status === 'extracting' && (
+          <div className="pt-2 border-t border-border-divider">
+            <div className="text-caption-2-regular text-text-tertiary mb-1">
+              Current file:
+            </div>
+            <div className="text-caption-1-regular text-text-primary truncate flex items-center gap-1.5">
+              <RiFileLine className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{currentEntry}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Errors */}
+      {errors && errors.length > 0 && (
+        <div className="rounded-xl bg-background-error-subtle border border-border-error p-3">
+          <div className="flex items-start gap-2">
+            <RiErrorWarningLine className="w-4 h-4 text-text-error mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <div className="text-caption-1-semibold text-text-error mb-1">
+                {errors.length} error{errors.length !== 1 ? 's' : ''} occurred
+              </div>
+              <details>
+                <summary className="text-caption-2-regular text-text-error cursor-pointer">
+                  Show details
+                </summary>
+                <div className="mt-2 space-y-1">
+                  {errors.map((err, i) => (
+                    <div key={i} className="text-caption-2-regular text-text-error">
+                      {err}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
