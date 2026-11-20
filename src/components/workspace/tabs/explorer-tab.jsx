@@ -1131,6 +1131,7 @@ export function ExplorerTabContent({ tab }) {
       case "extract-here":
         // Extract directly to current directory
         (async () => {
+          let eventSource = null;
           try {
             const response = await fetch("/api/files/archive/extract", {
               method: "POST",
@@ -1148,11 +1149,60 @@ export function ExplorerTabContent({ tab }) {
               throw new Error(data.error || 'Extraction failed');
             }
             
+            const operationId = data.operationId;
+            
+            // Subscribe to SSE for progress updates
+            await new Promise((resolve, reject) => {
+              eventSource = new EventSource(`/api/files/archive/extract?operationId=${operationId}`);
+              
+              eventSource.onmessage = (event) => {
+                try {
+                  const eventData = JSON.parse(event.data);
+                  
+                  if (eventData.type === 'end') {
+                    eventSource.close();
+                    return;
+                  }
+                  
+                  // Check for terminal states
+                  if (eventData.status === 'completed') {
+                    eventSource.close();
+                    resolve();
+                  } else if (eventData.status === 'failed') {
+                    eventSource.close();
+                    reject(new Error(eventData.errors?.[0] || 'Extraction failed'));
+                  } else if (eventData.status === 'cancelled') {
+                    eventSource.close();
+                    reject(new Error('Extraction was cancelled'));
+                  }
+                } catch (err) {
+                  console.error('Error parsing SSE event:', err);
+                }
+              };
+              
+              eventSource.onerror = () => {
+                eventSource.close();
+                reject(new Error('Connection lost during extraction'));
+              };
+              
+              // Timeout after 5 minutes
+              setTimeout(() => {
+                if (eventSource) {
+                  eventSource.close();
+                  reject(new Error('Extraction timeout'));
+                }
+              }, 5 * 60 * 1000);
+            });
+            
             toast.success(`Extracted "${file.name}" successfully`);
             handleRefresh();
           } catch (err) {
             console.error('Extract here error:', err);
             toast.error(err.message || 'Failed to extract archive');
+          } finally {
+            if (eventSource) {
+              eventSource.close();
+            }
           }
         })();
         break;

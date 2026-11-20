@@ -44,7 +44,7 @@ export const CONFLICT_STRATEGIES = {
 const LIMITS = {
   maxFileSize: 500 * 1024 * 1024, // 500MB per file
   maxArchiveSize: 2 * 1024 * 1024 * 1024, // 2GB total archive
-  maxEntryCount: 100000, // 100k entries
+  maxEntryCount: 200000, // 200k entries
   maxDecompressionRatio: 100, // 100x decompression ratio
   blockedExtensions: new Set(['.exe', '.bat', '.cmd', '.scr', '.msi', '.com']),
 };
@@ -347,9 +347,22 @@ export async function extractArchive({
   let skipped = 0;
   
   try {
-    // Validate paths
+    // Validate archive path
     const { absolutePath: absArchivePath } = await validatePath(archivePath);
-    const { absolutePath: absDestPath } = await validatePath(destPath);
+    
+    // Resolve destination path (don't validate existence yet)
+    const normalizedDest = path.normalize(destPath || '.');
+    const absDestPath = path.resolve(ROOT_DIR, normalizedDest);
+    
+    // Security check: ensure dest is within ROOT_DIR
+    const normalizedRoot = path.normalize(ROOT_DIR);
+    const rootPrefix = normalizedRoot.endsWith(path.sep) 
+      ? normalizedRoot 
+      : normalizedRoot + path.sep;
+    
+    if (!absDestPath.startsWith(rootPrefix) && absDestPath !== normalizedRoot) {
+      throw { status: 403, message: 'Destination path escapes root directory' };
+    }
     
     // Verify archive exists
     const archiveStat = await fs.stat(absArchivePath);
@@ -357,17 +370,11 @@ export async function extractArchive({
       throw { status: 400, message: 'Archive path is a directory' };
     }
     
-    // Ensure destination exists
+    // Create destination directory if it doesn't exist
     try {
-      await fs.access(absDestPath);
-    } catch {
-      throw { status: 404, message: 'Destination directory does not exist' };
-    }
-    
-    // Verify destination is within root
-    const normalizedRoot = path.normalize(ROOT_DIR);
-    if (!absDestPath.startsWith(normalizedRoot)) {
-      throw { status: 403, message: 'Destination path outside root directory' };
+      await fs.mkdir(absDestPath, { recursive: true });
+    } catch (error) {
+      throw { status: 500, message: `Failed to create destination directory: ${error.message}` };
     }
     
     // Load the archive
@@ -537,9 +544,22 @@ export async function extractSevenZip({
   let skipped = 0;
   
   try {
-    // Validate paths
+    // Validate archive path
     const { absolutePath: absArchivePath } = await validatePath(archivePath);
-    const { absolutePath: absDestPath } = await validatePath(destPath);
+    
+    // Resolve destination path (don't validate existence yet)
+    const normalizedDest = path.normalize(destPath || '.');
+    const absDestPath = path.resolve(ROOT_DIR, normalizedDest);
+    
+    // Security check: ensure dest is within ROOT_DIR
+    const normalizedRoot = path.normalize(ROOT_DIR);
+    const rootPrefix = normalizedRoot.endsWith(path.sep) 
+      ? normalizedRoot 
+      : normalizedRoot + path.sep;
+    
+    if (!absDestPath.startsWith(rootPrefix) && absDestPath !== normalizedRoot) {
+      throw { status: 403, message: 'Destination path escapes root directory' };
+    }
     
     // Verify archive exists
     const archiveStat = await fs.stat(absArchivePath);
@@ -547,17 +567,11 @@ export async function extractSevenZip({
       throw { status: 400, message: 'Archive path is a directory' };
     }
     
-    // Ensure destination exists
+    // Create destination directory if it doesn't exist
     try {
-      await fs.access(absDestPath);
-    } catch {
-      throw { status: 404, message: 'Destination directory does not exist' };
-    }
-    
-    // Verify destination is within root
-    const normalizedRoot = path.normalize(ROOT_DIR);
-    if (!absDestPath.startsWith(normalizedRoot)) {
-      throw { status: 403, message: 'Destination path outside root directory' };
+      await fs.mkdir(absDestPath, { recursive: true });
+    } catch (error) {
+      throw { status: 500, message: `Failed to create destination directory: ${error.message}` };
     }
     
     // Find 7z executable

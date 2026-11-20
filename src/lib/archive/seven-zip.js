@@ -139,7 +139,7 @@ export async function listArchive(absolutePath) {
   }
 
   try {
-    const { stdout } = await execFileAsync(sevenZip, ['l', '-slt', '-y', absolutePath], {
+    const { stdout, stderr } = await execFileAsync(sevenZip, ['l', '-slt', '-y', absolutePath], {
       maxBuffer: 50 * 1024 * 1024, // 50MB buffer for large archives
       timeout: 60000, // 60 second timeout
     });
@@ -152,7 +152,9 @@ export async function listArchive(absolutePath) {
     return { entries, totalSize, totalCompressed };
   } catch (error) {
     if (error.status) throw error;
-    throw { status: 500, message: `Failed to list archive: ${error.message}` };
+    // Extract error message from stderr if available
+    const errorMessage = error.stderr || error.message || 'Unknown error';
+    throw { status: 500, message: `Failed to list archive: ${errorMessage}` };
   }
 }
 

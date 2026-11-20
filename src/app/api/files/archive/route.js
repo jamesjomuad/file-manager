@@ -51,7 +51,7 @@ export async function GET(request) {
 
     // Dispatch to format-specific handler
     if (format.id === '7z') {
-      return handleSevenZip(absolutePath, entryName);
+      return await handleSevenZip(absolutePath, entryName);
     }
 
     // Default: ZIP

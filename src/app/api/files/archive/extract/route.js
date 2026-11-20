@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
 import { extractArchive, CONFLICT_STRATEGIES } from '@/lib/archive/service';
+import { validatePath, ROOT_DIR } from '@/lib/filesystem/security';
 import {
   createOperation,
   getOperation,
@@ -89,6 +92,27 @@ async function runExtraction(operation, { entries, conflictStrategy, preserveStr
     // Phase: extracting
     updateOperation(operation.id, { status: 'extracting' });
 
+    // Resolve and create destination directory if needed
+    const normalized = path.normalize(operation.destPath || '.');
+    const absDestPath = path.resolve(ROOT_DIR, normalized);
+    
+    // Security check: ensure path is within ROOT_DIR
+    const normalizedRoot = path.normalize(ROOT_DIR);
+    const rootPrefix = normalizedRoot.endsWith(path.sep) 
+      ? normalizedRoot 
+      : normalizedRoot + path.sep;
+    
+    if (!absDestPath.startsWith(rootPrefix) && absDestPath !== normalizedRoot) {
+      throw new Error('Destination path escapes root directory');
+    }
+    
+    // Create destination directory
+    try {
+      await fs.mkdir(absDestPath, { recursive: true });
+    } catch (error) {
+      throw new Error(`Failed to create destination directory: ${error.message}`);
+    }
+
     const result = await extractArchive({
       archivePath: operation.archivePath,
       destPath: operation.destPath,
@@ -162,54 +186,64 @@ async function runExtraction(operation, { entries, conflictStrategy, preserveStr
  * Subscribes to real-time progress updates for an extraction operation.
  */
 export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const operationId = searchParams.get('operationId');
+  try {
+    const { searchParams } = new URL(request.url);
+    const operationId = searchParams.get('operationId');
 
-  if (!operationId) {
-    return NextResponse.json(
-      { success: false, error: 'operationId is required' },
-      { status: 400 }
-    );
-  }
+    if (!operationId) {
+      return NextResponse.json(
+        { success: false, error: 'operationId is required' },
+        { status: 400 }
+      );
+    }
 
-  const operation = getOperation(operationId);
-  if (!operation) {
-    return NextResponse.json(
-      { success: false, error: 'Operation not found' },
-      { status: 404 }
-    );
-  }
+    const operation = getOperation(operationId);
+    if (!operation) {
+      return NextResponse.json(
+        { success: false, error: 'Operation not found' },
+        { status: 404 }
+      );
+    }
+
+    console.log('SSE GET: Creating stream for operation', operationId, 'status:', operation.status);
 
   // Create SSE stream
   const encoder = new TextEncoder();
   let isClosed = false;
+  let heartbeatInterval = null;
+  let listener = null;
 
   const stream = new ReadableStream({
-    start(controller) {
-      // Send initial state immediately
-      const sendEvent = (data) => {
-        if (isClosed) return false;
-        try {
-          const event = `data: ${JSON.stringify(data)}\n\n`;
-          controller.enqueue(encoder.encode(event));
-          return true;
-        } catch {
-          isClosed = true;
-          return false;
+    async start(controller) {
+      try {
+        // Send initial state immediately
+        const sendEvent = (data) => {
+          if (isClosed) return false;
+          try {
+            const event = `data: ${JSON.stringify(data)}\n\n`;
+            controller.enqueue(encoder.encode(event));
+            return true;
+          } catch (err) {
+            console.error('SSE sendEvent error:', err);
+            isClosed = true;
+            return false;
+          }
+        };
+
+        // Send initial operation state
+        console.log('SSE: Sending initial state for operation', operationId);
+        sendEvent(formatOperationState(operation));
+        console.log('SSE: Initial state sent, status:', operation.status);
+
+        // If already terminal, send and close
+        if (['completed', 'failed', 'cancelled'].includes(operation.status)) {
+          console.log('SSE: Operation already terminal, closing stream');
+          controller.close();
+          return;
         }
-      };
-
-      // Send initial operation state
-      sendEvent(formatOperationState(operation));
-
-      // If already terminal, send and close
-      if (['completed', 'failed', 'cancelled'].includes(operation.status)) {
-        controller.close();
-        return;
-      }
 
       // Listen for updates
-      const listener = (updatedOp) => {
+      listener = (updatedOp) => {
         if (isClosed) return;
 
         sendEvent(formatOperationState(updatedOp));
@@ -225,13 +259,19 @@ export async function GET(request) {
           } catch {
             // Already closed
           }
+          
+          // Cleanup
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+          }
+          removeEventListener(operationId, listener);
         }
       };
 
       addEventListener(operationId, listener);
 
       // Heartbeat to keep connection alive (every 15 seconds)
-      const heartbeatInterval = setInterval(() => {
+      heartbeatInterval = setInterval(() => {
         if (isClosed) {
           clearInterval(heartbeatInterval);
           return;
@@ -243,25 +283,21 @@ export async function GET(request) {
         }
         sendEvent({ type: 'heartbeat' });
       }, 15000);
-
-      // Cleanup on cancel
-      const cleanup = () => {
-        isClosed = true;
-        clearInterval(heartbeatInterval);
-        removeEventListener(operationId, listener);
-      };
-
-      // Store cleanup reference
-      stream._cleanup = cleanup;
+      } catch (error) {
+        console.error('SSE stream start error:', error);
+        controller.error(error);
+      }
     },
     cancel() {
       isClosed = true;
-      if (stream._cleanup) {
-        stream._cleanup();
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+      if (listener) {
+        removeEventListener(operationId, listener);
       }
     },
   });
-
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
@@ -270,6 +306,13 @@ export async function GET(request) {
       'X-Accel-Buffering': 'no', // Prevent nginx buffering
     },
   });
+  } catch (error) {
+    console.error('SSE GET error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to create SSE stream' },
+      { status: 500 }
+    );
+  }
 }
 
 /**
