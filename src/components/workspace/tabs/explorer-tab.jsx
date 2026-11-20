@@ -1532,6 +1532,7 @@ export function ExplorerTabContent({ tab }) {
         {/* Confirmation dialog */}
         {confirmDialog && (
           <ConfirmDialog
+            open={true}
             title={confirmDialog.title}
             message={confirmDialog.message}
             confirmLabel={confirmDialog.confirmLabel || "Confirm"}
