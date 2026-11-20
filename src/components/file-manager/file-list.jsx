@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { cx } from "@/utils/cx";
 import { FileIcon } from "@/components/file-manager/file-icon";
 import { ThumbnailImage } from "@/components/file-manager/thumbnail-image";
@@ -98,6 +98,11 @@ function SortableHeader({ field, label, sortBy, sortOrder, onSortChange, align =
  * @param {(sortBy: string) => void} props.onSortChange - Sort change callback
  * @param {(path: string) => boolean} [props.isFavorite] - Check if a path is favorited
  * @param {(path: string) => void} [props.onToggleFavorite] - Toggle favorite for a path
+ * @param {(path: string) => boolean} [props.isCut] - Check if a path is marked as cut (pending move)
+ * @param {(e: React.DragEvent, file: Object) => void} [props.onItemDragStart] - Drag start handler
+ * @param {(e: React.DragEvent, folder: Object) => boolean} [props.onFolderDragOver] - Drag over handler for folders
+ * @param {(e: React.DragEvent, folder: Object) => void} [props.onFolderDrop] - Drop handler for folders
+ * @param {() => void} [props.onDragEnd] - Drag end handler
  */
 export function FileList({
   files = [],
@@ -110,8 +115,15 @@ export function FileList({
   onSortChange,
   isFavorite,
   onToggleFavorite,
+  isCut,
+  onItemDragStart,
+  onFolderDragOver,
+  onFolderDrop,
+  onDragEnd,
 }) {
   const showFavorites = typeof isFavorite === "function" && typeof onToggleFavorite === "function";
+  const supportsDnD = typeof onItemDragStart === "function";
+  const [dragOverPath, setDragOverPath] = useState(null);
 
   const handleRowClick = useCallback(
     (file, event) => {
@@ -196,15 +208,43 @@ export function FileList({
           {files.map((file) => {
             const isSelected = selectedFiles.has(file.path);
             const favorited = showFavorites && isFavorite(file.path);
+            const cutPending = typeof isCut === 'function' && isCut(file.path);
+            const isDragOver = dragOverPath === file.path;
+            const isFolder = file.type === 'directory';
             const row = (
               <tr
                 key={file.path}
                 onClick={(e) => handleRowClick(file, e)}
                 onDoubleClick={(e) => handleRowDoubleClick(file, e)}
+                draggable={supportsDnD}
+                onDragStart={(e) => {
+                  if (supportsDnD) onItemDragStart(e, file);
+                }}
+                onDragOver={(e) => {
+                  if (isFolder && onFolderDragOver) {
+                    const valid = onFolderDragOver(e, file);
+                    if (valid) setDragOverPath(file.path);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (isFolder) setDragOverPath(null);
+                }}
+                onDrop={(e) => {
+                  if (isFolder && onFolderDrop) {
+                    setDragOverPath(null);
+                    onFolderDrop(e, file);
+                  }
+                }}
+                onDragEnd={() => {
+                  setDragOverPath(null);
+                  onDragEnd?.();
+                }}
                 className={cx(
                   "border-b border-separator-border cursor-pointer transition-colors",
                   "hover:bg-background-secondary-hover",
-                  isSelected && "bg-background-selection"
+                  isSelected && "bg-background-selection",
+                  cutPending && "opacity-50",
+                  isDragOver && "ring-2 ring-inset ring-accent-500 bg-background-selection"
                 )}
               >
                 {/* Name */}

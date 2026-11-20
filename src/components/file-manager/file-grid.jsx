@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { cx } from "@/utils/cx";
 import { FileIcon } from "@/components/file-manager/file-icon";
 import { ThumbnailImage } from "@/components/file-manager/thumbnail-image";
@@ -18,6 +18,11 @@ import { isSupportedImageFormat } from "@/lib/image/image-utils";
  * @param {(file: Object) => React.ReactNode} [props.renderContextMenu] - Returns BoardUI ContextMenu JSX for a file
  * @param {(path: string) => boolean} [props.isFavorite] - Check if a path is favorited
  * @param {(path: string) => void} [props.onToggleFavorite] - Toggle favorite for a path
+ * @param {(path: string) => boolean} [props.isCut] - Check if a path is marked as cut (pending move)
+ * @param {(e: React.DragEvent, file: Object) => void} [props.onItemDragStart] - Drag start handler
+ * @param {(e: React.DragEvent, folder: Object) => boolean} [props.onFolderDragOver] - Drag over handler for folders
+ * @param {(e: React.DragEvent, folder: Object) => void} [props.onFolderDrop] - Drop handler for folders
+ * @param {() => void} [props.onDragEnd] - Drag end handler
  */
 export function FileGrid({
   files = [],
@@ -27,8 +32,17 @@ export function FileGrid({
   renderContextMenu,
   isFavorite,
   onToggleFavorite,
+  isCut,
+  onItemDragStart,
+  onFolderDragOver,
+  onFolderDrop,
+  onDragEnd,
 }) {
   const showFavorites = typeof isFavorite === "function" && typeof onToggleFavorite === "function";
+  const supportsDnD = typeof onItemDragStart === "function";
+
+  // Track which folder is being dragged over
+  const [dragOverPath, setDragOverPath] = useState(null);
 
   const handleClick = useCallback(
     (file, event) => {
@@ -78,16 +92,44 @@ export function FileGrid({
         {files.map((file) => {
           const isSelected = selectedFiles.has(file.path);
           const favorited = showFavorites && isFavorite(file.path);
+          const cutPending = typeof isCut === 'function' && isCut(file.path);
+          const isDragOver = dragOverPath === file.path;
+          const isFolder = file.type === 'directory';
 
           const card = (
             <div
               key={file.path}
               onClick={(e) => handleClick(file, e)}
               onDoubleClick={(e) => handleDoubleClick(file, e)}
+              draggable={supportsDnD}
+              onDragStart={(e) => {
+                if (supportsDnD) onItemDragStart(e, file);
+              }}
+              onDragOver={(e) => {
+                if (isFolder && onFolderDragOver) {
+                  const valid = onFolderDragOver(e, file);
+                  if (valid) setDragOverPath(file.path);
+                }
+              }}
+              onDragLeave={() => {
+                if (isFolder) setDragOverPath(null);
+              }}
+              onDrop={(e) => {
+                if (isFolder && onFolderDrop) {
+                  setDragOverPath(null);
+                  onFolderDrop(e, file);
+                }
+              }}
+              onDragEnd={() => {
+                setDragOverPath(null);
+                onDragEnd?.();
+              }}
               className={cx(
                 "relative rounded-xl p-3 pt-6 flex flex-col items-center gap-2 cursor-pointer transition-colors",
                 "hover:bg-background-secondary-hover",
-                isSelected && "ring-2 ring-accent-500 bg-background-selection"
+                isSelected && "ring-2 ring-accent-500 bg-background-selection",
+                cutPending && "opacity-50",
+                isDragOver && "ring-2 ring-accent-500 bg-background-selection"
               )}
             >
               {/* Favorite star overlay (top-right corner) */}

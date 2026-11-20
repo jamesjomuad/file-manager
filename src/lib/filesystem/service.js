@@ -192,6 +192,288 @@ export async function copyItem(srcPath, destPath) {
 }
 
 /**
+ * Move multiple items to a destination directory.
+ * @param {string[]} sourcePaths - Relative paths of items to move
+ * @param {string} destDir - Relative path of destination directory
+ * @param {Object} [options]
+ * @param {'skip'|'replace'|'rename'} [options.conflict='rename'] - How to handle conflicts
+ * @returns {Promise<{moved: Object[], skipped: string[], errors: string[]}>}
+ */
+export async function moveItems(sourcePaths, destDir, options = {}) {
+  const { conflict = 'rename' } = options;
+  const { absolutePath: destDirAbs } = await validatePath(destDir);
+  const normalizedRoot = path.normalize(ROOT_DIR);
+
+  const moved = [];
+  const skipped = [];
+  const errors = [];
+
+  for (const srcRel of sourcePaths) {
+    try {
+      const { absolutePath: srcAbs } = await validatePath(srcRel);
+      const srcName = path.basename(srcRel);
+      const destFull = path.join(destDirAbs, srcName);
+
+      // Prevent moving a directory into itself or a descendant
+      if (destFull.startsWith(srcAbs + path.sep) || destFull === srcAbs) {
+        errors.push(`Cannot move "${srcName}" into itself or a descendant`);
+        continue;
+      }
+
+      // Check if destination exists
+      let destExists = false;
+      try {
+        await fs.access(destFull);
+        destExists = true;
+      } catch {
+        destExists = false;
+      }
+
+      if (!destExists) {
+        // No conflict — simple rename
+        await fs.rename(srcAbs, destFull);
+        const stats = await fs.stat(destFull);
+        moved.push({
+          name: srcName,
+          path: path.join(destDir, srcName),
+          type: stats.isDirectory() ? 'directory' : 'file',
+          size: stats.size,
+          sizeFormatted: formatFileSize(stats.size),
+          modifiedAt: stats.mtime.toISOString(),
+        });
+        continue;
+      }
+
+      // Handle conflict
+      if (conflict === 'skip') {
+        skipped.push(srcName);
+        continue;
+      }
+
+      if (conflict === 'replace') {
+        // Remove existing and move
+        const existingStats = await fs.lstat(destFull);
+        if (existingStats.isDirectory()) {
+          await fs.rm(destFull, { recursive: true, force: true });
+        } else {
+          await fs.unlink(destFull);
+        }
+        await fs.rename(srcAbs, destFull);
+        const stats = await fs.stat(destFull);
+        moved.push({
+          name: srcName,
+          path: path.join(destDir, srcName),
+          type: stats.isDirectory() ? 'directory' : 'file',
+          size: stats.size,
+          sizeFormatted: formatFileSize(stats.size),
+          modifiedAt: stats.mtime.toISOString(),
+        });
+        continue;
+      }
+
+      if (conflict === 'rename') {
+        // Generate unique name
+        const ext = path.extname(srcName);
+        const base = path.basename(srcName, ext);
+        let counter = 1;
+        let newName = srcName;
+        let newDest = destFull;
+
+        while (true) {
+          newName = ext ? `${base} (${counter})${ext}` : `${base} (${counter})`;
+          newDest = path.join(destDirAbs, newName);
+          try {
+            await fs.access(newDest);
+            counter++;
+          } catch {
+            break;
+          }
+          if (counter > 999) {
+            throw new Error(`Too many conflicts for "${srcName}"`);
+          }
+        }
+
+        await fs.rename(srcAbs, newDest);
+        const stats = await fs.stat(newDest);
+        moved.push({
+          name: newName,
+          path: path.join(destDir, newName),
+          type: stats.isDirectory() ? 'directory' : 'file',
+          size: stats.size,
+          sizeFormatted: formatFileSize(stats.size),
+          modifiedAt: stats.mtime.toISOString(),
+        });
+        continue;
+      }
+
+      errors.push(`Unknown conflict strategy: ${conflict}`);
+    } catch (err) {
+      if (err.code === 'EXDEV') {
+        // Cross-device move: copy then delete
+        try {
+          const { absolutePath: srcAbs } = await validatePath(srcRel);
+          const srcName = path.basename(srcRel);
+          const destFull = path.join(destDirAbs, srcName);
+
+          const stats = await fs.lstat(srcAbs);
+          if (stats.isDirectory()) {
+            await fs.cp(srcAbs, destFull, { recursive: true });
+          } else {
+            await fs.copyFile(srcAbs, destFull);
+          }
+          await fs.rm(srcAbs, { recursive: true, force: true });
+
+          const newStats = await fs.stat(destFull);
+          moved.push({
+            name: srcName,
+            path: path.join(destDir, srcName),
+            type: newStats.isDirectory() ? 'directory' : 'file',
+            size: newStats.size,
+            sizeFormatted: formatFileSize(newStats.size),
+            modifiedAt: newStats.mtime.toISOString(),
+          });
+        } catch (crossErr) {
+          errors.push(`Failed to move "${srcRel}": ${crossErr.message}`);
+        }
+      } else {
+        errors.push(`Failed to move "${srcRel}": ${err.message}`);
+      }
+    }
+  }
+
+  return { moved, skipped, errors };
+}
+
+/**
+ * Copy multiple items to a destination directory.
+ * @param {string[]} sourcePaths - Relative paths of items to copy
+ * @param {string} destDir - Relative path of destination directory
+ * @param {Object} [options]
+ * @param {'skip'|'replace'|'rename'} [options.conflict='rename'] - How to handle conflicts
+ * @returns {Promise<{copied: Object[], skipped: string[], errors: string[]}>}
+ */
+export async function copyItems(sourcePaths, destDir, options = {}) {
+  const { conflict = 'rename' } = options;
+  const { absolutePath: destDirAbs } = await validatePath(destDir);
+
+  const copied = [];
+  const skipped = [];
+  const errors = [];
+
+  for (const srcRel of sourcePaths) {
+    try {
+      const { absolutePath: srcAbs } = await validatePath(srcRel);
+      const srcName = path.basename(srcRel);
+      const destFull = path.join(destDirAbs, srcName);
+
+      // Check if destination exists
+      let destExists = false;
+      try {
+        await fs.access(destFull);
+        destExists = true;
+      } catch {
+        destExists = false;
+      }
+
+      if (!destExists) {
+        const stats = await fs.lstat(srcAbs);
+        if (stats.isDirectory()) {
+          await fs.cp(srcAbs, destFull, { recursive: true });
+        } else {
+          await fs.copyFile(srcAbs, destFull);
+        }
+        const newStats = await fs.stat(destFull);
+        copied.push({
+          name: srcName,
+          path: path.join(destDir, srcName),
+          type: newStats.isDirectory() ? 'directory' : 'file',
+          size: newStats.size,
+          sizeFormatted: formatFileSize(newStats.size),
+          modifiedAt: newStats.mtime.toISOString(),
+        });
+        continue;
+      }
+
+      // Handle conflict
+      if (conflict === 'skip') {
+        skipped.push(srcName);
+        continue;
+      }
+
+      if (conflict === 'replace') {
+        const existingStats = await fs.lstat(destFull);
+        if (existingStats.isDirectory()) {
+          await fs.rm(destFull, { recursive: true, force: true });
+        } else {
+          await fs.unlink(destFull);
+        }
+        const stats = await fs.lstat(srcAbs);
+        if (stats.isDirectory()) {
+          await fs.cp(srcAbs, destFull, { recursive: true });
+        } else {
+          await fs.copyFile(srcAbs, destFull);
+        }
+        const newStats = await fs.stat(destFull);
+        copied.push({
+          name: srcName,
+          path: path.join(destDir, srcName),
+          type: newStats.isDirectory() ? 'directory' : 'file',
+          size: newStats.size,
+          sizeFormatted: formatFileSize(newStats.size),
+          modifiedAt: newStats.mtime.toISOString(),
+        });
+        continue;
+      }
+
+      if (conflict === 'rename') {
+        const ext = path.extname(srcName);
+        const base = path.basename(srcName, ext);
+        let counter = 1;
+        let newName = srcName;
+        let newDest = destFull;
+
+        while (true) {
+          newName = ext ? `${base} (${counter})${ext}` : `${base} (${counter})`;
+          newDest = path.join(destDirAbs, newName);
+          try {
+            await fs.access(newDest);
+            counter++;
+          } catch {
+            break;
+          }
+          if (counter > 999) {
+            throw new Error(`Too many conflicts for "${srcName}"`);
+          }
+        }
+
+        const stats = await fs.lstat(srcAbs);
+        if (stats.isDirectory()) {
+          await fs.cp(srcAbs, newDest, { recursive: true });
+        } else {
+          await fs.copyFile(srcAbs, newDest);
+        }
+        const newStats = await fs.stat(newDest);
+        copied.push({
+          name: newName,
+          path: path.join(destDir, newName),
+          type: newStats.isDirectory() ? 'directory' : 'file',
+          size: newStats.size,
+          sizeFormatted: formatFileSize(newStats.size),
+          modifiedAt: newStats.mtime.toISOString(),
+        });
+        continue;
+      }
+
+      errors.push(`Unknown conflict strategy: ${conflict}`);
+    } catch (err) {
+      errors.push(`Failed to copy "${srcRel}": ${err.message}`);
+    }
+  }
+
+  return { copied, skipped, errors };
+}
+
+/**
  * Get metadata for a single file/directory.
  * @param {string} targetPath
  * @returns {Promise<Object>}

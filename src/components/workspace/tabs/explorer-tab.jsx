@@ -21,6 +21,7 @@ import { useFavorites } from "@/hooks/use-favorites";
 import { useRecentFiles } from "@/hooks/use-recent-files";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useTrashStore } from "@/stores/trash-store";
+import { useClipboardStore } from "@/stores/clipboard-store";
 import { canPreview, isImage, isPDF, isText } from "@/lib/file-type";
 import { isSupportedImageFormat } from "@/lib/image/image-utils";
 import {
@@ -35,13 +36,19 @@ import {
   RiFileCopyLine,
   RiLink,
   RiFileTextLine,
+  RiScissorsLine,
+  RiClipboardLine,
+  RiFolderTransferLine,
+  RiArrowGoForwardLine,
 } from "@remixicon/react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { toast } from "@/components/base/toast/toast";
 import { useUploadStore } from "@/stores/upload-store";
 import { ConflictDialog } from "@/components/upload/conflict-dialog";
 import { UploadQueue } from "@/components/upload/upload-queue";
+import { MoveToDialog } from "@/components/file-manager/move-to-dialog";
 import { formatFileSize } from "@/components/upload/upload-zone";
+import { useFileDragAndDrop } from "@/hooks/use-file-drag-and-drop";
 
 /**
  * Join rootPath and relative path using the separator detected from rootPath.
@@ -94,6 +101,7 @@ export function ExplorerTabContent({ tab }) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const { addRecent } = useRecentFiles();
   const { openTab, updateTabState } = useWorkspace();
+  const { items: clipboardItems, mode: clipboardMode, cut: clipboardCut, copy: clipboardCopy, clear: clipboardClear, isCut: isClipboardCut } = useClipboardStore();
 
   const [files, setFiles] = useState([]);
   const [viewMode, setViewMode] = useState("grid");
@@ -110,6 +118,7 @@ export function ExplorerTabContent({ tab }) {
   // Archive dialogs state
   const [compressDialog, setCompressDialog] = useState(null);
   const [extractDialog, setExtractDialog] = useState(null);
+  const [moveToDialog, setMoveToDialog] = useState(null);
 
   // Upload state
   const [dragActive, setDragActive] = useState(false);
@@ -706,6 +715,274 @@ export function ExplorerTabContent({ tab }) {
   }, [selectedFiles, files]);
 
   /**
+   * Get target files for clipboard operations (respects multi-select)
+   * @param {Object} file - The file that triggered the action
+   * @returns {Object[]}
+   */
+  const getClipboardTargets = useCallback(
+    (file) => {
+      if (selectedFiles.size > 1 && selectedFiles.has(file.path)) {
+        return files.filter((f) => selectedFiles.has(f.path));
+      }
+      return [file];
+    },
+    [selectedFiles, files],
+  );
+
+  /**
+   * Handle cut (prepare for move)
+   */
+  const handleCut = useCallback(
+    (file) => {
+      const targets = getClipboardTargets(file);
+      clipboardCut(targets.map(f => ({ path: f.path, name: f.name, type: f.type })));
+      toast.success(`${targets.length} item${targets.length !== 1 ? 's' : ''} cut`);
+    },
+    [getClipboardTargets, clipboardCut],
+  );
+
+  /**
+   * Handle copy to clipboard
+   */
+  const handleCopyToClipboard = useCallback(
+    (file) => {
+      const targets = getClipboardTargets(file);
+      clipboardCopy(targets.map(f => ({ path: f.path, name: f.name, type: f.type })));
+      toast.success(`${targets.length} item${targets.length !== 1 ? 's' : ''} copied`);
+    },
+    [getClipboardTargets, clipboardCopy],
+  );
+
+  /**
+   * Handle paste from clipboard into current directory
+   */
+  const handlePaste = useCallback(async () => {
+    if (!clipboardItems || clipboardItems.length === 0) {
+      toast.error("Clipboard is empty");
+      return;
+    }
+
+    try {
+      const action = clipboardMode === 'cut' ? 'move' : 'copy';
+      const sources = clipboardItems.map(item => item.path);
+
+      const response = await fetch('/api/files/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          sources,
+          destination: currentPath || '.',
+          conflict: 'rename',
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || `${action} failed`);
+      }
+
+      const data = await response.json();
+      const resultItems = action === 'move' ? data.moved : data.copied;
+      const skipped = data.skipped || [];
+      const errors = data.errors || [];
+
+      // Clear clipboard if cut operation
+      if (clipboardMode === 'cut') {
+        clipboardClear();
+      }
+
+      // Refresh file list
+      fetchFiles();
+
+      // Show results
+      if (errors.length > 0) {
+        toast.error(`${errors.length} item${errors.length !== 1 ? 's' : ''} failed`);
+      } else if (resultItems.length > 0) {
+        toast.success(`${resultItems.length} item${resultItems.length !== 1 ? 's' : ''} ${action === 'move' ? 'moved' : 'copied'}`);
+      }
+    } catch (error) {
+      console.error('Paste error:', error);
+      toast.error(error.message || 'Paste failed');
+    }
+  }, [clipboardItems, clipboardMode, currentPath, clipboardClear, fetchFiles]);
+
+  /**
+   * Handle "Move To" — open dialog with selected files
+   */
+  const handleMoveTo = useCallback(
+    (file) => {
+      const targets = getClipboardTargets(file);
+      setMoveToDialog({
+        items: targets.map((f) => ({ path: f.path, name: f.name, type: f.type })),
+      });
+    },
+    [getClipboardTargets],
+  );
+
+  /**
+   * Handle Move To confirmation — perform the move
+   * @param {string} destPath - Destination directory relative path
+   */
+  const handleMoveToConfirm = useCallback(async (destPath) => {
+    if (!moveToDialog) return;
+
+    try {
+      const sources = moveToDialog.items.map((item) => item.path);
+
+      const response = await fetch("/api/files/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "move",
+          sources,
+          destination: destPath,
+          conflict: "rename",
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Move failed");
+      }
+
+      const data = await response.json();
+      const moved = data.moved || [];
+      const errors = data.errors || [];
+
+      // Clear clipboard if these items were cut
+      clipboardClear();
+
+      // Refresh file list
+      fetchFiles();
+
+      // Show results
+      if (errors.length > 0) {
+        toast.error(`${errors.length} item${errors.length !== 1 ? "s" : ""} failed to move`);
+      }
+      if (moved.length > 0) {
+        toast.success(
+          `${moved.length} item${moved.length !== 1 ? "s" : ""} moved`
+        );
+      }
+
+      setMoveToDialog(null);
+    } catch (error) {
+      console.error("Move To error:", error);
+      toast.error(error.message || "Move failed");
+    }
+  }, [moveToDialog, clipboardClear, fetchFiles]);
+
+  /**
+   * Handle drag-and-drop move operation
+   * @param {string[]} sourcePaths - Relative paths to move
+   * @param {string} destPath - Destination directory relative path
+   */
+  const handleDnDMove = useCallback(async (sourcePaths, destPath) => {
+    try {
+      const response = await fetch("/api/files/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "move",
+          sources: sourcePaths,
+          destination: destPath,
+          conflict: "rename",
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Move failed");
+      }
+
+      const data = await response.json();
+      const moved = data.moved || [];
+      const errors = data.errors || [];
+
+      // Clear clipboard if these items were cut
+      clipboardClear();
+
+      // Refresh file list
+      fetchFiles();
+
+      // Show results
+      if (errors.length > 0) {
+        toast.error(`${errors.length} item${errors.length !== 1 ? "s" : ""} failed to move`);
+      }
+      if (moved.length > 0) {
+        toast.success(
+          `Moved ${moved.length} item${moved.length !== 1 ? "s" : ""}`
+        );
+      }
+    } catch (error) {
+      console.error("DnD move error:", error);
+      toast.error(error.message || "Move failed");
+    }
+  }, [clipboardClear, fetchFiles]);
+
+  // Set up drag-and-drop
+  const {
+    handleItemDragStart,
+    handleFolderDragOver,
+    handleDrop,
+    handleDragEnd,
+    isDropValid: isDnDValid,
+  } = useFileDragAndDrop({
+    onMove: handleDnDMove,
+    selectedFiles,
+    files,
+  });
+
+  /**
+   * Check if dropping on a breadcrumb segment is valid
+   * @param {string} targetPath - The path represented by the breadcrumb segment
+   * @returns {boolean}
+   */
+  const handleBreadcrumbDragOver = useCallback(
+    (targetPath) => {
+      // Create a pseudo-folder object for the validation check
+      const pseudoFolder = { path: targetPath, type: "directory" };
+      return isDnDValid(pseudoFolder);
+    },
+    [isDnDValid]
+  );
+
+  /**
+   * Handle drop on a breadcrumb segment
+   * @param {string} targetPath - Destination path
+   * @param {DragEvent} e - The drop event
+   */
+  const handleBreadcrumbDrop = useCallback(
+    (targetPath, e) => {
+      try {
+        const pathsJson = e.dataTransfer.getData("application/x-file-paths");
+        if (!pathsJson) return;
+
+        const sourcePaths = JSON.parse(pathsJson);
+        if (!Array.isArray(sourcePaths) || sourcePaths.length === 0) return;
+
+        // Validate: prevent dropping into self or descendants
+        for (const srcPath of sourcePaths) {
+          const normalized = srcPath.replace(/\\/g, "/");
+          const normalizedTarget = targetPath.replace(/\\/g, "/");
+          if (
+            normalizedTarget === normalized ||
+            normalizedTarget.startsWith(normalized + "/")
+          ) {
+            return; // Invalid drop
+          }
+        }
+
+        handleDnDMove(sourcePaths, targetPath);
+      } catch (error) {
+        console.error("Breadcrumb drop error:", error);
+      }
+    },
+    [handleDnDMove]
+  );
+
+  /**
    * Handle rename file/folder
    */
   const handleRename = useCallback(async (file) => {
@@ -896,8 +1173,20 @@ export function ExplorerTabContent({ tab }) {
       case "copy-filename":
         handleCopyFilename(file);
         break;
+      case "cut":
+        handleCut(file);
+        break;
+      case "copy-to-clipboard":
+        handleCopyToClipboard(file);
+        break;
+      case "paste":
+        handlePaste();
+        break;
+      case "move-to":
+        handleMoveTo(file);
+        break;
     }
-  }, [handlePreview, handleRename, openTab, currentPath, handleRefresh, handleCopyPath, handleCopyRelativePath, handleCopyFilename]);
+  }, [handlePreview, handleRename, openTab, currentPath, handleRefresh, handleCopyPath, handleCopyRelativePath, handleCopyFilename, handleCut, handleCopyToClipboard, handlePaste, handleMoveTo]);
 
   /**
    * Render context menu for a file (used by FileList/FileGrid)
@@ -941,6 +1230,22 @@ export function ExplorerTabContent({ tab }) {
           Rename
         </ContextMenuItem>
         <ContextMenuSeparator />
+        {/* Clipboard operations */}
+        <ContextMenuItem id="cut" icon={RiScissorsLine}>
+          Cut
+        </ContextMenuItem>
+        <ContextMenuItem id="copy-to-clipboard" icon={RiFileCopyLine}>
+          Copy
+        </ContextMenuItem>
+        {clipboardItems.length > 0 && (
+          <ContextMenuItem id="paste" icon={RiClipboardLine}>
+            Paste {clipboardMode === 'cut' ? '(move)' : '(copy)'}
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem id="move-to" icon={RiFolderTransferLine}>
+          Move To...
+        </ContextMenuItem>
+        <ContextMenuSeparator />
         {/* Archive actions */}
         {!isArchive && (
           <ContextMenuItem id="compress" icon={RiFolderZipLine}>
@@ -974,7 +1279,7 @@ export function ExplorerTabContent({ tab }) {
         </ContextMenuItem>
       </ContextMenu>
     );
-  }, [handleContextAction]);
+  }, [handleContextAction, clipboardItems, clipboardMode]);
 
   /**
    * Keyboard shortcuts
@@ -1014,10 +1319,40 @@ export function ExplorerTabContent({ tab }) {
         return;
       }
 
-      // Escape - clear selection
+      // Ctrl+X - cut selected files
+      if (isMod && e.key === "x" && selectedFiles.size > 0) {
+        e.preventDefault();
+        const targets = files.filter(f => selectedFiles.has(f.path));
+        if (targets.length > 0) {
+          handleCut(targets[0]);
+        }
+        return;
+      }
+
+      // Ctrl+C - copy selected files
+      if (isMod && e.key === "c" && selectedFiles.size > 0) {
+        e.preventDefault();
+        const targets = files.filter(f => selectedFiles.has(f.path));
+        if (targets.length > 0) {
+          handleCopyToClipboard(targets[0]);
+        }
+        return;
+      }
+
+      // Ctrl+V - paste from clipboard
+      if (isMod && e.key === "v") {
+        e.preventDefault();
+        handlePaste();
+        return;
+      }
+
+      // Escape - clear selection and clipboard
       if (e.key === "Escape") {
         e.preventDefault();
         setSelectedFiles(new Set());
+        if (clipboardMode === 'cut') {
+          clipboardClear();
+        }
         return;
       }
 
@@ -1071,7 +1406,7 @@ export function ExplorerTabContent({ tab }) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedFiles, files, currentPath, viewMode, sortedFiles, handleBulkDelete, handleRename, handleSelectAll, handleOpen, handleNavigateUp]);
+  }, [selectedFiles, files, currentPath, viewMode, sortedFiles, handleBulkDelete, handleRename, handleSelectAll, handleOpen, handleNavigateUp, handleCut, handleCopyToClipboard, handlePaste, clipboardMode, clipboardClear]);
 
   return (
     <FileDropZone
@@ -1109,7 +1444,12 @@ export function ExplorerTabContent({ tab }) {
 
         {/* Breadcrumb navigation */}
         <div className="px-4 py-2 border-b border-border-primary-default bg-background-primary-default">
-          <Breadcrumb path={currentPath} onNavigate={handleNavigate} />
+          <Breadcrumb
+            path={currentPath}
+            onNavigate={handleNavigate}
+            onDragOverItem={handleBreadcrumbDragOver}
+            onDropItem={handleBreadcrumbDrop}
+          />
         </div>
 
         {/* File listing */}
@@ -1131,6 +1471,11 @@ export function ExplorerTabContent({ tab }) {
               renderContextMenu={renderContextMenu}
               isFavorite={isFavorite}
               onToggleFavorite={toggleFavorite}
+              isCut={isClipboardCut}
+              onItemDragStart={handleItemDragStart}
+              onFolderDragOver={handleFolderDragOver}
+              onFolderDrop={handleDrop}
+              onDragEnd={handleDragEnd}
             />
           ) : (
             <FileList
@@ -1147,6 +1492,11 @@ export function ExplorerTabContent({ tab }) {
               }}
               isFavorite={isFavorite}
               onToggleFavorite={toggleFavorite}
+              isCut={isClipboardCut}
+              onItemDragStart={handleItemDragStart}
+              onFolderDragOver={handleFolderDragOver}
+              onFolderDrop={handleDrop}
+              onDragEnd={handleDragEnd}
             />
           )}
         </div>
@@ -1204,6 +1554,15 @@ export function ExplorerTabContent({ tab }) {
           conflicts={conflictDialog.conflicts}
           onResolve={handleConflictResolution}
           onCancel={() => setConflictDialog({ open: false, conflicts: [], pendingFiles: [], resolutions: new Map() })}
+        />
+
+        {/* Move To dialog */}
+        <MoveToDialog
+          open={!!moveToDialog}
+          items={moveToDialog?.items || []}
+          currentPath={currentPath}
+          onClose={() => setMoveToDialog(null)}
+          onConfirm={handleMoveToConfirm}
         />
 
         {/* Upload queue */}
