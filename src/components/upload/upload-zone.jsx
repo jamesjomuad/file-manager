@@ -4,6 +4,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { cx } from '@/utils/cx';
 import { useUploadStore } from '@/stores/upload-store';
 import { ConflictDialog } from './conflict-dialog';
+import { toast } from '@/components/base/toast/toast';
 import {
   RiUploadCloud2Line,
 } from '@remixicon/react';
@@ -39,8 +40,8 @@ export function formatFileSize(bytes) {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-// Default max file size: 50MB
-const DEFAULT_MAX_BYTES = 50 * 1024 * 1024;
+// Default max file size: 2GB
+const DEFAULT_MAX_BYTES = 2 * 1024 * 1024 * 1024;
 
 /**
  * File upload zone component with drag-and-drop support.
@@ -256,6 +257,10 @@ export function UploadZone({
 
       if (errors.length > 0) {
         setRejection(errors[0]);
+        // Show toast notification for validation errors
+        toast.error('Upload failed', {
+          description: errors[0],
+        });
         return;
       }
 
