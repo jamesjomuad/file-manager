@@ -4,12 +4,14 @@ import { useTheme } from "@/contexts/theme-context";
 import { ThemeSelector } from "@/components/settings/theme-selector";
 import { ThemeModeSelector } from "@/components/settings/theme-mode-selector";
 import { AccentColorPicker } from "@/components/settings/accent-color-picker";
+import { InsightsExclusionsSettings } from "@/components/settings/insights-exclusions-settings";
 import { cx } from "@/utils/cx";
 import {
   RiPaletteLine,
   RiSettings3Line,
   RiFolderLine,
   RiInformationLine,
+  RiSearchLine,
 } from "@remixicon/react";
 
 /**
@@ -112,6 +114,15 @@ export function SettingsView({ initialSection }) {
           <div className="py-4 text-center text-body-regular text-text-tertiary">
             File manager settings are coming soon.
           </div>
+        </SettingsSection>
+
+        {/* Insights section */}
+        <SettingsSection
+          title="Insights Scan Exclusions"
+          description="Configure which directories are excluded from Insights filesystem scans."
+          icon={RiSearchLine}
+        >
+          <InsightsExclusionsSettings />
         </SettingsSection>
 
         {/* About section */}

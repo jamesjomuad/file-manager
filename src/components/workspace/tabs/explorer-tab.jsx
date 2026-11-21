@@ -683,6 +683,7 @@ export function ExplorerTabContent({ tab }) {
 
     try {
       const paths = Array.from(selectedFiles);
+      const failures = [];
 
       for (const path of paths) {
         const response = await fetch(`/api/files/${encodeURIComponent(path)}`, {
@@ -690,8 +691,13 @@ export function ExplorerTabContent({ tab }) {
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to delete ${path}`);
+          const errorData = await response.json().catch(() => ({}));
+          failures.push({ path, error: errorData.error || `HTTP ${response.status}` });
         }
+      }
+
+      if (failures.length > 0) {
+        throw new Error(`${failures.length} file(s) failed: ${failures.map(f => `${f.path}: ${f.error}`).join('; ')}`);
       }
 
       // Clear selection, refresh file list, and update trash count
@@ -700,7 +706,7 @@ export function ExplorerTabContent({ tab }) {
       useTrashStore.getState().refresh();
     } catch (error) {
       console.error("Error deleting files:", error);
-      alert("Failed to delete some files");
+      alert(`Failed to delete: ${error.message}`);
     }
   }, [selectedFiles, fetchFiles]);
 
@@ -1129,82 +1135,12 @@ export function ExplorerTabContent({ tab }) {
         });
         break;
       case "extract-here":
-        // Extract directly to current directory
-        (async () => {
-          let eventSource = null;
-          try {
-            const response = await fetch("/api/files/archive/extract", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                archivePath: file.path,
-                destPath: currentPath || ".",
-                conflictStrategy: "skip",
-              }),
-            });
-            
-            const data = await response.json();
-            
-            if (!response.ok) {
-              throw new Error(data.error || 'Extraction failed');
-            }
-            
-            const operationId = data.operationId;
-            
-            // Subscribe to SSE for progress updates
-            await new Promise((resolve, reject) => {
-              eventSource = new EventSource(`/api/files/archive/extract?operationId=${operationId}`);
-              
-              eventSource.onmessage = (event) => {
-                try {
-                  const eventData = JSON.parse(event.data);
-                  
-                  if (eventData.type === 'end') {
-                    eventSource.close();
-                    return;
-                  }
-                  
-                  // Check for terminal states
-                  if (eventData.status === 'completed') {
-                    eventSource.close();
-                    resolve();
-                  } else if (eventData.status === 'failed') {
-                    eventSource.close();
-                    reject(new Error(eventData.errors?.[0] || 'Extraction failed'));
-                  } else if (eventData.status === 'cancelled') {
-                    eventSource.close();
-                    reject(new Error('Extraction was cancelled'));
-                  }
-                } catch (err) {
-                  console.error('Error parsing SSE event:', err);
-                }
-              };
-              
-              eventSource.onerror = () => {
-                eventSource.close();
-                reject(new Error('Connection lost during extraction'));
-              };
-              
-              // Timeout after 5 minutes
-              setTimeout(() => {
-                if (eventSource) {
-                  eventSource.close();
-                  reject(new Error('Extraction timeout'));
-                }
-              }, 5 * 60 * 1000);
-            });
-            
-            toast.success(`Extracted "${file.name}" successfully`);
-            handleRefresh();
-          } catch (err) {
-            console.error('Extract here error:', err);
-            toast.error(err.message || 'Failed to extract archive');
-          } finally {
-            if (eventSource) {
-              eventSource.close();
-            }
-          }
-        })();
+        // Extract directly to current directory with progress dialog
+        setExtractDialog({
+          archivePath: file.path,
+          archiveName: file.name,
+          autoExtract: true,
+        });
         break;
       case "extract-to":
         setExtractDialog({
@@ -1223,11 +1159,14 @@ export function ExplorerTabContent({ tab }) {
                 `/api/files/${encodeURIComponent(file.path)}`,
                 { method: "DELETE" }
               );
-              if (!response.ok) throw new Error("Failed to delete");
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Failed to delete (${response.status})`);
+              }
               useTrashStore.getState().refresh();
             } catch (error) {
               console.error("Error deleting file:", error);
-              alert("Failed to delete file");
+              alert(`Failed to delete file: ${error.message}`);
             }
           },
         });
@@ -1621,6 +1560,7 @@ export function ExplorerTabContent({ tab }) {
           archiveName={extractDialog?.archiveName || ''}
           selectedEntries={extractDialog?.selectedEntries}
           currentPath={currentPath}
+          autoExtract={extractDialog?.autoExtract || false}
           onClose={() => setExtractDialog(null)}
           onComplete={() => {
             handleRefresh();

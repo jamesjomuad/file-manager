@@ -8,7 +8,6 @@ import { Header } from "@/components/layout/header";
  * Main application shell wrapper
  * @param {Object} props
  * @param {import('react').ReactNode} props.children - Page content
- * @param {string} props.currentPath - Current route path for sidebar highlight
  * @param {string} props.path - Current file path for breadcrumb
  * @param {'grid'|'list'} props.viewMode - Current view mode
  * @param {(mode: 'grid'|'list') => void} props.onViewModeChange - View mode change callback
@@ -16,7 +15,6 @@ import { Header } from "@/components/layout/header";
  */
 export function AppShell({
   children,
-  currentPath,
   path,
   viewMode,
   onViewModeChange,
@@ -25,7 +23,7 @@ export function AppShell({
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <Sidebar currentPath={currentPath} />
+      <Sidebar />
 
       {/* Main content area */}
       <div className="flex-1 min-w-0 flex flex-col">

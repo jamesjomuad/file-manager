@@ -1,12 +1,17 @@
 "use client";
 
 import { lazy } from "react";
-import { Navigate } from "react-router-dom";
 
 // Lazy-loaded route components
 const ExplorerRoute = lazy(() =>
   import("@/lib/router/routes/explorer-route").then((m) => ({
     default: m.ExplorerRoute,
+  }))
+);
+
+const InsightsRoute = lazy(() =>
+  import("@/lib/router/routes/insights-route").then((m) => ({
+    default: m.InsightsRoute,
   }))
 );
 
@@ -53,7 +58,7 @@ const NotFoundView = lazy(() =>
  * All routes are relative to the hash fragment (e.g., #/explorer).
  *
  * Route structure:
- * /              → Redirect to /explorer
+ * /              → Insights (dashboard with instant + scan-based analytics)
  * /explorer      → File Explorer (root)
  * /explorer/*    → File Explorer with folder path (splat param)
  * /recent        → Recent files
@@ -66,17 +71,18 @@ const NotFoundView = lazy(() =>
 export const routeConfig = [
   {
     path: "/",
-    element: <Navigate to="/explorer" replace />,
+    element: <InsightsRoute />,
+    handle: { name: "insights", label: "Insights" },
   },
   {
     path: "/explorer",
     element: <ExplorerRoute />,
-    handle: { name: "explorer", label: "Explorer" },
+    handle: { name: "files", label: "Explore" },
   },
   {
     path: "/explorer/*",
     element: <ExplorerRoute />,
-    handle: { name: "explorer", label: "Explorer" },
+    handle: { name: "files", label: "Explore" },
   },
   {
     path: "/recent",

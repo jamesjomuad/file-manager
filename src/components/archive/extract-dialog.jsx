@@ -78,6 +78,7 @@ const STATUS_COLORS = {
  * @param {string} props.archiveName - Name of the archive for display
  * @param {string[]} [props.selectedEntries] - Specific entries to extract
  * @param {string} props.currentPath - Current directory (default destination)
+ * @param {boolean} [props.autoExtract=false] - Skip config and extract immediately
  * @param {() => void} props.onClose - Close callback
  * @param {(result: Object) => void} props.onComplete - Success callback
  */
@@ -87,6 +88,7 @@ export function ExtractDialog({
   archiveName,
   selectedEntries,
   currentPath,
+  autoExtract = false,
   onClose,
   onComplete,
 }) {
@@ -291,6 +293,13 @@ export function ExtractDialog({
     }
   };
 
+  // Auto-extract when autoExtract is true (skip config, extract immediately)
+  useEffect(() => {
+    if (open && autoExtract && !loading && !operationId) {
+      handleExtract();
+    }
+  }, [open, autoExtract]);
+
   /**
    * Handle cancellation
    */
@@ -375,7 +384,7 @@ export function ExtractDialog({
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* Archive info (only show when not extracting) */}
-          {!isExtracting && !isTerminal && (
+          {!isExtracting && !isTerminal && !autoExtract && (
             <>
               {fetchingInfo ? (
                 <div className="flex items-center gap-2 text-caption-1-regular text-text-tertiary">
@@ -544,6 +553,32 @@ export function ExtractDialog({
           {(isExtracting || isTerminal) && progress && (
             <ProgressView progress={progress} />
           )}
+
+          {/* Auto-extract loading state (waiting for first progress event) */}
+          {autoExtract && isExtracting && !progress && (
+            <div className="flex flex-col items-center justify-center py-8 space-y-3">
+              <RiLoaderLine className="w-8 h-8 animate-spin text-accent-500" />
+              <div className="text-body-medium text-text-primary">
+                Starting extraction...
+              </div>
+              <div className="text-caption-1-regular text-text-tertiary">
+                {archiveName}
+              </div>
+            </div>
+          )}
+
+          {/* Auto-extract error state */}
+          {autoExtract && !isExtracting && !isTerminal && error && (
+            <div className="flex flex-col items-center justify-center py-8 space-y-3">
+              <RiErrorWarningLine className="w-8 h-8 text-text-error" />
+              <div className="text-body-medium text-text-error">
+                Extraction failed
+              </div>
+              <div className="text-caption-1-regular text-text-secondary text-center max-w-xs">
+                {error}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -576,6 +611,14 @@ export function ExtractDialog({
                 {progress?.status === 'preparing' ? 'Preparing...' : 'Extracting...'}
               </Button>
             </>
+          ) : autoExtract && error ? (
+            <Button
+              variant="primary"
+              size="medium"
+              onClick={handleClose}
+            >
+              Close
+            </Button>
           ) : (
             <>
               <Button
