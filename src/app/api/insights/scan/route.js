@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { scanFilesystem, cancelScan, getCachedResult, invalidateCache } from '@/lib/insights/scanner';
+import { scanFilesystem, cancelScan, getCachedResult, getCachedResultAsync, invalidateCache } from '@/lib/insights/scanner';
 
 /**
  * In-progress scan state.
@@ -75,7 +75,7 @@ export async function GET(request) {
 
   // Return cached result or signal that a scan is needed
   if (!refresh) {
-    const cached = getCachedResult('default');
+    const cached = await getCachedResultAsync('default');
     if (cached) {
       return NextResponse.json({
         success: true,
@@ -111,7 +111,7 @@ export async function POST(request) {
 
     // If not refreshing and we have cache, return immediately
     if (!refresh) {
-      const cached = getCachedResult('default');
+      const cached = await getCachedResultAsync('default');
       if (cached) {
         return NextResponse.json({
           success: true,

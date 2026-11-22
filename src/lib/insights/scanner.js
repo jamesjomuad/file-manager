@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import { fdir } from 'fdir';
 import { ROOT_DIR } from '../filesystem/security.js';
 import { getFileCategory } from '../filesystem/utils.js';
 import { getEffectiveExclusions } from './exclusions.js';
@@ -40,13 +41,57 @@ const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Persistent cache file path (inside ROOT_DIR).
+ * Survives server restarts so the UI has data immediately.
+ */
+const PERSIST_FILE = path.join(ROOT_DIR, '.filemanager-insights-scan.json');
+
+/**
  * Active scan controllers.
  * @type {Map<string, AbortController>}
  */
 const activeScans = new Map();
 
 /**
+ * Write scan result to the persistent JSON file.
+ * Fire-and-forget — errors are logged but never thrown.
+ * @param {string} key
+ * @param {ScanResult} result
+ */
+function saveToDisk(key, result) {
+  const payload = { key, result, timestamp: Date.now() };
+  fs.writeFile(PERSIST_FILE, JSON.stringify(payload), 'utf-8').catch((err) => {
+    console.warn('Failed to persist insights cache:', err.message);
+  });
+}
+
+/**
+ * Async disk loader used by getCachedResultAsync.
+ * @param {string} key
+ * @returns {Promise<{result: ScanResult, timestamp: number}|null>}
+ */
+async function loadFromDisk(key) {
+  try {
+    const raw = await fs.readFile(PERSIST_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (parsed.key === key && parsed.result) {
+      return { result: parsed.result, timestamp: parsed.timestamp };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Track whether a disk load is already in flight to avoid duplicates.
+ * @type {Promise<{result: ScanResult, timestamp: number}|null>|null}
+ */
+let diskLoadPromise = null;
+
+/**
  * Get cached scan result if still fresh.
+ * Checks in-memory cache first. On miss, returns null (use getCachedResultAsync for disk fallback).
  * @param {string} key - Cache key (typically 'default')
  * @returns {ScanResult|null}
  */
@@ -61,16 +106,43 @@ export function getCachedResult(key = 'default') {
 }
 
 /**
- * Store a scan result in cache.
+ * Get cached scan result with disk fallback.
+ * Checks in-memory cache first, then loads from the persistent JSON file.
+ * On disk hit, the result is promoted back into the in-memory cache.
+ * @param {string} key - Cache key (typically 'default')
+ * @returns {Promise<ScanResult|null>}
+ */
+export async function getCachedResultAsync(key = 'default') {
+  // Fast path: in-memory cache
+  const memResult = getCachedResult(key);
+  if (memResult) return memResult;
+
+  // Slow path: load from disk
+  if (!diskLoadPromise) {
+    diskLoadPromise = loadFromDisk(key).finally(() => {
+      diskLoadPromise = null;
+    });
+  }
+  const entry = await diskLoadPromise;
+  if (!entry) return null;
+
+  // Promote to in-memory cache (skip TTL — a persisted result is valid on restart)
+  cache.set(key, entry);
+  return entry.result;
+}
+
+/**
+ * Store a scan result in cache (memory + disk).
  * @param {string} key
  * @param {ScanResult} result
  */
 export function setCacheResult(key, result) {
   cache.set(key, { result, timestamp: Date.now() });
+  saveToDisk(key, result);
 }
 
 /**
- * Invalidate the scan cache.
+ * Invalidate the scan cache (memory + disk).
  * @param {string} [key] - Specific key, or omit to clear all.
  */
 export function invalidateCache(key) {
@@ -78,6 +150,10 @@ export function invalidateCache(key) {
     cache.delete(key);
   } else {
     cache.clear();
+  }
+  // Also remove the persisted file
+  if (!key || key === 'default') {
+    fs.unlink(PERSIST_FILE).catch(() => {});
   }
 }
 
@@ -180,172 +256,226 @@ async function hashFile(filePath, maxBytes = 4 * 1024 * 1024, signal) {
   }
 }
 
+// =============================================================================
+// fdir-based filesystem traversal
+// =============================================================================
+
 /**
- * Recursively walk directory and collect metrics.
+ * Batch size for parallel stat calls.
+ */
+const STAT_BATCH_SIZE = 200;
+
+/**
+ * Crawl the filesystem using fdir for fast traversal, then batch-stat all paths
+ * in parallel for metadata collection.
  *
- * @param {string} dirAbs - Absolute directory path
- * @param {string} dirRel - Relative path from root (for display)
  * @param {Object} accum - Accumulator object
  * @param {AbortSignal} signal
  * @param {function} onProgress - Progress callback
  * @param {Set<string>} excludedDirs - Lowercased directory names to skip
  * @returns {Promise<void>}
  */
-async function walkDirectory(dirAbs, dirRel, accum, signal, onProgress, excludedDirs) {
+async function crawlFilesystem(accum, signal, onProgress, excludedDirs) {
+  // Phase 1: Fast traversal using fdir
+  // fdir's exclude() prevents descending into matching directories (not just filtering)
+  const crawler = new fdir()
+    .withDirs()
+    .withFullPaths()
+    .withErrors()
+    .withAbortSignal(signal)
+    .exclude((dirName) => excludedDirs.has(dirName.toLowerCase()));
+
+  /** @type {string[]} */
+  let allPaths;
+  try {
+    allPaths = await crawler.crawl(ROOT_DIR).withPromise();
+  } catch (err) {
+    if (signal?.aborted) throw new Error('Scan cancelled');
+    throw err;
+  }
+
   if (signal?.aborted) throw new Error('Scan cancelled');
 
-  let entries;
-  try {
-    entries = await fs.readdir(dirAbs, { withFileTypes: true });
-  } catch (err) {
-    // Permission denied, inaccessible directory - record and skip
-    accum.errors.push({ path: dirRel || '.', error: err.message });
-    return;
-  }
+  // Phase 2: Batch-stat all paths in parallel to collect metadata
+  // Normalize ROOT_DIR for relative path computation
+  const normalizedRoot = path.normalize(ROOT_DIR);
 
-  for (const entry of entries) {
+  // Build sets for directory membership and child tracking (for empty folder detection)
+  const dirSet = new Set();
+  // Map: parentDir (relative) -> Set of child relative paths
+  const childrenOf = new Map();
+
+  // Process in batches
+  for (let batchStart = 0; batchStart < allPaths.length; batchStart += STAT_BATCH_SIZE) {
     if (signal?.aborted) throw new Error('Scan cancelled');
 
-    // Skip excluded directories (case-insensitive, directories only)
-    if (entry.isDirectory() && excludedDirs.has(entry.name.toLowerCase())) continue;
+    const batch = allPaths.slice(batchStart, batchStart + STAT_BATCH_SIZE);
 
-    const entryAbs = path.join(dirAbs, entry.name);
-    const entryRel = dirRel ? path.join(dirRel, entry.name) : entry.name;
+    // Stat all paths in this batch in parallel
+    const results = await Promise.allSettled(
+      batch.map(async (absPath) => {
+        const stat = await fs.lstat(absPath);
+        return { absPath, stat };
+      })
+    );
 
-    let stats;
-    try {
-      stats = await fs.lstat(entryAbs);
-    } catch {
-      accum.errors.push({ path: entryRel, error: 'Cannot stat' });
-      continue;
-    }
+    for (let i = 0; i < results.length; i++) {
+      if (signal?.aborted) throw new Error('Scan cancelled');
 
-    // Skip symlinks that escape root
-    if (stats.isSymbolicLink()) {
-      try {
-        const target = await fs.realpath(entryAbs);
-        const normalizedRoot = path.normalize(ROOT_DIR);
-        if (!target.startsWith(normalizedRoot)) {
-          continue; // Skip escaping symlink
-        }
-        // Re-stat the target to get real stats
-        stats = await fs.stat(entryAbs);
-      } catch {
-        continue; // Broken symlink
-      }
-    }
+      const result = results[i];
+      const absPath = batch[i];
+      const relPath = path.relative(normalizedRoot, absPath) || '.';
 
-    if (stats.isDirectory()) {
-      accum.totalFolders++;
-      accum.dirsScanned++;
-      onProgress?.({
-        filesScanned: accum.totalFiles,
-        dirsScanned: accum.dirsScanned,
-        currentPath: entryRel,
-        phase: 'scanning',
-      });
-
-      // Recurse into subdirectory
-      await walkDirectory(entryAbs, entryRel, accum, signal, onProgress, excludedDirs);
-
-      // Calculate directory size from direct children (already accumulated)
-      // We store this as the "immediate" size for folder size ranking
-    } else if (stats.isFile()) {
-      accum.totalFiles++;
-      accum.totalSize += stats.size;
-      accum.filesScanned++;
-
-      const ext = path.extname(entry.name).toLowerCase();
-      const category = getInsightCategory(entry.name);
-
-      // Update category distribution
-      if (!accum.categories[category]) {
-        accum.categories[category] = { category, count: 0, size: 0 };
-      }
-      accum.categories[category].count++;
-      accum.categories[category].size += stats.size;
-
-      // Track largest files (keep top 50)
-      const fileInfo = {
-        name: entry.name,
-        path: entryRel,
-        size: stats.size,
-        category,
-        extension: ext,
-        modifiedAt: stats.mtime.toISOString(),
-        createdAt: stats.birthtime.toISOString(),
-      };
-
-      insertTopN(accum.largestFiles, fileInfo, (a, b) => b.size - a.size, 50);
-
-      // Track recently modified (top 50)
-      insertTopN(accum.recentFiles, fileInfo, (a, b) =>
-        new Date(b.modifiedAt) - new Date(a.modifiedAt), 50);
-
-      // Track recently added by birth time
-      const addedInfo = { ...fileInfo, addedAt: stats.birthtime.toISOString() };
-      insertTopN(accum.recentlyAdded, addedInfo, (a, b) =>
-        new Date(b.addedAt) - new Date(a.addedAt), 50);
-
-      // Track large archives (> 10MB)
-      if (isArchive(entry.name) && stats.size > 10 * 1024 * 1024) {
-        accum.largeArchives.push(fileInfo);
+      if (result.status === 'rejected') {
+        // Inaccessible path — record error and skip
+        accum.errors.push({ path: relPath, error: result.reason?.message || 'Cannot stat' });
+        continue;
       }
 
-      // Track old files (not modified in 6 months)
-      const sixMonthsAgo = Date.now() - 180 * 24 * 60 * 60 * 1000;
-      if (stats.mtime.getTime() < sixMonthsAgo) {
-        accum.oldFiles.push(fileInfo);
-      }
+      let { stat } = result.value;
 
-      // Size-based duplicate pre-filter: group by size
-      if (stats.size > 0) {
-        // Only consider files > 1KB for duplicate detection
-        if (stats.size >= 1024) {
-          if (!accum.sizeGroups[stats.size]) {
-            accum.sizeGroups[stats.size] = [];
+      // Skip symlinks that escape root
+      if (stat.isSymbolicLink()) {
+        try {
+          const target = await fs.realpath(absPath);
+          if (!target.startsWith(normalizedRoot)) {
+            continue; // Skip escaping symlink
           }
-          accum.sizeGroups[stats.size].push({
-            path: entryRel,
-            absPath: entryAbs,
-            name: entry.name,
+          // Re-stat the target to get real stats
+          stat = await fs.stat(absPath);
+        } catch {
+          continue; // Broken symlink
+        }
+      }
+
+      if (stat.isDirectory()) {
+        accum.totalFolders++;
+        accum.dirsScanned++;
+        dirSet.add(relPath);
+
+        // Initialize children set for this directory
+        if (!childrenOf.has(relPath)) {
+          childrenOf.set(relPath, new Set());
+        }
+
+        // Register as child of parent
+        const parentRel = relPath === '.' ? null : (path.dirname(relPath) || '.');
+        if (parentRel !== null) {
+          if (!childrenOf.has(parentRel)) {
+            childrenOf.set(parentRel, new Set());
+          }
+          childrenOf.get(parentRel).add(relPath);
+        }
+
+        onProgress?.({
+          filesScanned: accum.totalFiles,
+          dirsScanned: accum.dirsScanned,
+          currentPath: relPath,
+          phase: 'scanning',
+        });
+      } else if (stat.isFile()) {
+        accum.totalFiles++;
+        accum.totalSize += stat.size;
+        accum.filesScanned++;
+
+        const name = path.basename(absPath);
+        const ext = path.extname(name).toLowerCase();
+        const category = getInsightCategory(name);
+
+        // Update category distribution
+        if (!accum.categories[category]) {
+          accum.categories[category] = { category, count: 0, size: 0 };
+        }
+        accum.categories[category].count++;
+        accum.categories[category].size += stat.size;
+
+        const fileInfo = {
+          name,
+          path: relPath,
+          size: stat.size,
+          category,
+          extension: ext,
+          modifiedAt: stat.mtime.toISOString(),
+          createdAt: stat.birthtime.toISOString(),
+        };
+
+        // Track largest files (keep top 50)
+        insertTopN(accum.largestFiles, fileInfo, (a, b) => b.size - a.size, 50);
+
+        // Track recently modified (top 50)
+        insertTopN(accum.recentFiles, fileInfo, (a, b) =>
+          new Date(b.modifiedAt) - new Date(a.modifiedAt), 50);
+
+        // Track recently added by birth time
+        const addedInfo = { ...fileInfo, addedAt: stat.birthtime.toISOString() };
+        insertTopN(accum.recentlyAdded, addedInfo, (a, b) =>
+          new Date(b.addedAt) - new Date(a.addedAt), 50);
+
+        // Track large archives (> 10MB)
+        if (isArchive(name) && stat.size > 10 * 1024 * 1024) {
+          accum.largeArchives.push(fileInfo);
+        }
+
+        // Track old files (not modified in 6 months)
+        const sixMonthsAgo = Date.now() - 180 * 24 * 60 * 60 * 1000;
+        if (stat.mtime.getTime() < sixMonthsAgo) {
+          accum.oldFiles.push(fileInfo);
+        }
+
+        // Size-based duplicate pre-filter: group by size
+        if (stat.size >= 1024) {
+          if (!accum.sizeGroups[stat.size]) {
+            accum.sizeGroups[stat.size] = [];
+          }
+          accum.sizeGroups[stat.size].push({
+            path: relPath,
+            absPath,
+            name,
           });
-          // Only keep groups with 2+ files (potential duplicates)
         }
-      }
 
-      // Track directory sizes: add this file's size to parent directory accumulators
-      // We do this by tracking per-directory sizes as we walk
-      let parent = dirRel || '.';
-      while (true) {
-        if (!accum.folderSizes.has(parent)) {
-          accum.folderSizes.set(parent, { size: 0, fileCount: 0, path: parent });
+        // Track directory sizes: add this file's size to all ancestor directories
+        let parent = path.dirname(relPath) || '.';
+        while (true) {
+          if (!accum.folderSizes.has(parent)) {
+            accum.folderSizes.set(parent, { size: 0, fileCount: 0, path: parent });
+          }
+          const folderData = accum.folderSizes.get(parent);
+          folderData.size += stat.size;
+          folderData.fileCount++;
+
+          if (parent === '.') break;
+          const nextParent = path.dirname(parent);
+          if (nextParent === parent) break;
+          parent = nextParent;
         }
-        const folderData = accum.folderSizes.get(parent);
-        folderData.size += stats.size;
-        folderData.fileCount++;
 
-        if (parent === '.' || parent === '') break;
-        const nextParent = path.dirname(parent);
-        if (nextParent === parent) break;
-        parent = nextParent;
+        // Register file as child of its parent directory
+        const parentDir = path.dirname(relPath) || '.';
+        if (!childrenOf.has(parentDir)) {
+          childrenOf.set(parentDir, new Set());
+        }
+        childrenOf.get(parentDir).add(relPath);
+
+        onProgress?.({
+          filesScanned: accum.totalFiles,
+          dirsScanned: accum.dirsScanned,
+          currentPath: relPath,
+          phase: 'scanning',
+        });
       }
-
-      onProgress?.({
-        filesScanned: accum.totalFiles,
-        dirsScanned: accum.dirsScanned,
-        currentPath: entryRel,
-        phase: 'scanning',
-      });
     }
   }
 
-  // Check for empty folders
-  if (entries.filter(e => !(e.isDirectory() && excludedDirs.has(e.name.toLowerCase()))).length === 0) {
-    accum.emptyFolders.push({
-      name: path.basename(dirRel) || '.',
-      path: dirRel || '.',
-    });
+  // Phase 3: Detect empty folders (directories with no children after exclusions)
+  for (const [dirRel, children] of childrenOf.entries()) {
+    if (dirRel === '.') continue; // Don't report root as empty
+    if (children.size === 0) {
+      accum.emptyFolders.push({
+        name: path.basename(dirRel),
+        path: dirRel,
+      });
+    }
   }
 }
 
@@ -386,7 +516,7 @@ export async function scanFilesystem(options = {}) {
 
   // Check cache first
   if (!forceFresh) {
-    const cached = getCachedResult('default');
+    const cached = await getCachedResultAsync('default');
     if (cached) {
       return { ...cached, scanMeta: { ...cached.scanMeta, cached: true } };
     }
@@ -422,8 +552,8 @@ export async function scanFilesystem(options = {}) {
   // Get configurable exclusions (case-insensitive set of lowercased names)
   const excludedDirs = await getEffectiveExclusions();
 
-  // Walk the filesystem
-  await walkDirectory(ROOT_DIR, '', accum, signal, onProgress, excludedDirs);
+  // Walk the filesystem using fdir
+  await crawlFilesystem(accum, signal, onProgress, excludedDirs);
 
   // Find largest file
   const largestFile = accum.largestFiles.length > 0 ? accum.largestFiles[0] : null;

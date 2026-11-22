@@ -67,7 +67,7 @@ export default function RootLayout({ children }) {
           }}
         />
       </head>
-      <body className="h-full flex flex-col bg-background-full">
+      <body className="h-full flex flex-col bg-background-full" suppressHydrationWarning>
         <StoreInitializer />
         <Toaster />
         {children}

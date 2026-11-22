@@ -1009,7 +1009,7 @@ export function ExplorerTabContent({ tab }) {
       const response = await fetch(`/api/files/${encodeURIComponent(file.path)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPath }),
+        body: JSON.stringify({ action: 'rename', newPath }),
       });
 
       if (!response.ok) {

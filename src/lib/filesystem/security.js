@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs/promises';
 
-const ROOT_DIR = path.resolve(process.env.FILE_MANAGER_ROOT || path.join(process.cwd(), 'data'));
+const ROOT_DIR = path.resolve(process.env.FILE_MANAGER_ROOT || path.join(/*turbopackIgnore: true*/ process.cwd(), 'data'));
 
 /**
  * Validate and resolve a user-provided path to ensure it stays within ROOT_DIR.
