@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { ExplorerTabContent } from "@/components/workspace/tabs/explorer-tab";
@@ -53,12 +54,13 @@ function TabContentRenderer() {
  * Explorer route component.
  *
  * Renders the workspace shell with the tabbed interface.
- * Reads the folder path from the URL splat parameter.
+ * Reads the folder path from the URL splat parameter and navigates to it.
  *
  * URL format: #/explorer or #/explorer/folder/subfolder
  */
 export function ExplorerRoute() {
   const params = useParams();
+  const { navigateExplorer } = useWorkspace();
 
   // Extract the folder path from the splat parameter
   // React Router v7 splat param: "*" contains the rest of the path
@@ -68,8 +70,15 @@ export function ExplorerRoute() {
     ? splatPath.split("/").map(decodeURIComponent).join("/")
     : "";
 
+  // Navigate to the folder when the route loads with a path
+  useEffect(() => {
+    if (folderPath) {
+      navigateExplorer(folderPath);
+    }
+  }, [folderPath, navigateExplorer]);
+
   return (
-    <WorkspaceShell routePath={folderPath}>
+    <WorkspaceShell>
       <TabContentRenderer />
     </WorkspaceShell>
   );

@@ -28,6 +28,8 @@ import { formatFileSize } from "@/lib/filesystem/utils";
 import { useFavoritesStore } from "@/stores/favorites-store";
 import { useRecentFiles } from "@/hooks/use-recent-files";
 import { useTrashStore } from "@/stores/trash-store";
+import { useWorkspace } from "@/contexts/workspace-context";
+import { isSupportedImageFormat } from "@/lib/image/image-utils";
 
 /**
  * Category color mapping for distribution visualization.
@@ -309,6 +311,7 @@ function CleanupSection({ title, count, icon: Icon, description, children }) {
  */
 export function InsightsRoute() {
   const navigate = useNavigate();
+  const { openTab } = useWorkspace();
 
   // ── Store data (instant) ──
   const favorites = useFavoritesStore((s) => s.favorites);
@@ -442,12 +445,30 @@ export function InsightsRoute() {
 
   // ── Navigation helpers ──
   const navigateToFolder = useCallback((folderPath) => {
-    navigate(`/files#${folderPath}`);
+    const encodedPath = folderPath
+      .split(/[\\/]/)
+      .map(encodeURIComponent)
+      .join("/");
+    navigate(`/explorer/${encodedPath}`);
   }, [navigate]);
 
   const openFile = useCallback((filePath) => {
-    navigate(`/workspace?path=${encodeURIComponent(filePath)}`);
-  }, [navigate]);
+    const name = filePath.replace(/\\/g, "/").split("/").pop() || filePath;
+    const ext = (name.includes(".") ? name.split(".").pop() : "").toLowerCase();
+    const dotExt = ext ? `.${ext}` : "";
+
+    if (isSupportedImageFormat(dotExt)) {
+      openTab("image-viewer", { path: filePath, title: name });
+    } else if (dotExt === ".pdf") {
+      openTab("pdf-viewer", { path: filePath, title: name });
+    } else if ([".md", ".markdown"].includes(dotExt)) {
+      openTab("markdown-viewer", { path: filePath, title: name });
+    } else if ([".txt", ".log", ".csv"].includes(dotExt)) {
+      openTab("text-viewer", { path: filePath, title: name });
+    } else {
+      openTab("editor", { path: filePath, title: name });
+    }
+  }, [openTab]);
 
   // ── Computed instant data ──
   const currentDirTypeDist = useMemo(() => {
@@ -543,7 +564,7 @@ export function InsightsRoute() {
                 : "Unable to load"
             }
             accentClass="bg-emerald-500/10 text-emerald-500"
-            onClick={() => navigate("/files")}
+            onClick={() => navigate("/explorer")}
           />
         </div>
 
