@@ -3,6 +3,7 @@
 import { cx } from "@/utils/cx";
 import { RiFileLine } from "@remixicon/react";
 import { resolveFileIcon, resolveFolderIcon } from "@/lib/file-icons/file-icon-registry";
+import { useTheme } from "@/contexts/theme-context";
 
 /**
  * File/folder icon component with comprehensive file-type recognition
@@ -16,6 +17,8 @@ import { resolveFileIcon, resolveFolderIcon } from "@/lib/file-icons/file-icon-r
  *
  * For folders, supports contextual icons for common directory names
  * (node_modules, src, .git, etc.)
+ *
+ * Generic folders use the accent color; special folders and files use brand colors.
  *
  * @param {Object} props
  * @param {'file'|'directory'} props.type - Whether it's a file or directory
@@ -37,6 +40,7 @@ export function FileIcon({
   size = "sm",
   className,
 }) {
+  const { themeObject } = useTheme();
   const sizeClass = size === "lg" ? "size-10" : size === "md" ? "size-6" : "size-5";
 
   // Directory
@@ -50,9 +54,17 @@ export function FileIcon({
     });
     const Icon = iconDef.icon;
 
+    // Use accent color for generic folders (not special folders or hidden)
+    const isGenericFolder = !iconDef.label || 
+      iconDef.label === "Folder" || 
+      iconDef.label === "Open Folder";
+    const iconColor = isGenericFolder 
+      ? themeObject.tokens["--color-accent-500"] || "#FBBF24"
+      : iconDef.color;
+
     return (
       <div className={cx("flex items-center justify-center", className)}>
-        <Icon className={sizeClass} style={{ color: iconDef.color }} aria-hidden />
+        <Icon className={sizeClass} style={{ color: iconColor }} aria-hidden />
       </div>
     );
   }

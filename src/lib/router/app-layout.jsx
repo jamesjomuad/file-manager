@@ -121,12 +121,12 @@ export function AppLayout() {
   }, [tabs, activeTabId, switchTab, switchTabByIndex, closeTab, reopenLastClosed]);
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full gap-2 p-2">
       {/* Sidebar */}
       <Sidebar />
 
       {/* Main content area */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col rounded-3xl bg-background-primary-default shadow-card overflow-hidden">
         <Suspense
           fallback={
             <div className="flex items-center justify-center h-full">

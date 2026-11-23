@@ -15,11 +15,9 @@ import { RiSearchLine, RiCloseLine } from "@remixicon/react";
  * reverts to the previously-committed theme.
  */
 export function ThemeSelector() {
-  const { currentTheme, previewTheme, setPreviewTheme, applyPreview, resetPreview } = useTheme();
+  const { currentTheme, previewTheme, setPreviewTheme } = useTheme();
   const [search, setSearch] = useState("");
   const gridRef = useRef(null);
-
-  const isPreviewing = previewTheme !== null;
 
   /** Filter themes by name search. */
   const filteredThemes = useMemo(() => {
@@ -114,44 +112,6 @@ export function ThemeSelector() {
           )}
         </div>
       </div>
-
-      {/* Preview banner */}
-      {isPreviewing && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-accent-950 border border-accent-800"
-        >
-          <p className="text-caption-1-semibold text-accent-300">
-            Previewing theme — changes are not yet saved
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={resetPreview}
-              className={cx(
-                "h-7 px-2.5 rounded-md text-caption-1-semibold",
-                "text-text-secondary hover:text-text-primary",
-                "hover:bg-background-primary-hover transition-colors",
-                "outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
-              )}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={applyPreview}
-              className={cx(
-                "h-7 px-2.5 rounded-md text-caption-1-semibold",
-                "bg-accent-500 text-text-white hover:bg-accent-600 transition-colors",
-                "outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
-              )}
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Theme grid */}
       <div

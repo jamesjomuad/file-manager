@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useTheme } from "@/contexts/theme-context";
 import { ThemeSelector } from "@/components/settings/theme-selector";
 import { ThemeModeSelector } from "@/components/settings/theme-mode-selector";
@@ -8,144 +9,299 @@ import { InsightsExclusionsSettings } from "@/components/settings/insights-exclu
 import { cx } from "@/utils/cx";
 import {
   RiPaletteLine,
-  RiSettings3Line,
-  RiFolderLine,
   RiInformationLine,
   RiSearchLine,
+  RiRefreshLine,
 } from "@remixicon/react";
 
+// =============================================================================
+// Navigation categories
+// =============================================================================
+
+/** @type {Array<{ id: string, label: string, icon: import('react').ComponentType<{className?: string}> }>} */
+const CATEGORIES = [
+  { id: "appearance", label: "Appearance", icon: RiPaletteLine },
+  { id: "insights", label: "Insights", icon: RiSearchLine },
+  { id: "about", label: "About", icon: RiInformationLine },
+];
+
+// =============================================================================
+// Settings Row — consistent label + control pattern
+// =============================================================================
+
 /**
- * Section wrapper with a title, description and optional icon.
+ * A settings row with a label, description, and control slot.
+ * @param {Object} props
+ * @param {string} props.label
+ * @param {string} [props.description]
+ * @param {import('react').ReactNode} props.children - Control element
  */
-function SettingsSection({ title, description, icon: Icon, children, className }) {
+function SettingsRow({ label, description, children }) {
   return (
-    <section
-      className={cx(
-        "flex flex-col gap-4 p-5 rounded-xl",
-        "bg-background-primary-default border border-border-button-default",
-        className,
-      )}
-    >
-      <div className="flex items-start gap-3">
-        {Icon && (
-          <span
-            className="flex items-center justify-center size-8 rounded-lg bg-background-secondary-default text-accent-500 shrink-0 mt-0.5"
-            aria-hidden
-          >
-            <Icon className="size-4" />
-          </span>
+    <div className="flex items-start justify-between gap-6 py-4 border-b border-separator-border last:border-b-0">
+      <div className="flex flex-col gap-0.5 min-w-0 pt-0.5">
+        <span className="text-body-medium text-text-primary">{label}</span>
+        {description && (
+          <span className="text-body-2-regular text-text-secondary">{description}</span>
         )}
-        <div className="flex flex-col gap-0.5">
-          <h2 className="text-title-3-semibold text-text-primary">{title}</h2>
-          {description && (
-            <p className="text-body-regular text-text-secondary">{description}</p>
-          )}
-        </div>
       </div>
-      <div className="ps-11">{children}</div>
-    </section>
+      <div className="shrink-0">{children}</div>
+    </div>
   );
 }
 
 /**
- * Settings view rendered within the workspace.
+ * A full-width settings row (label + description above, content below).
  * @param {Object} props
- * @param {string} [props.initialSection] - Section to scroll to on mount
+ * @param {string} [props.title]
+ * @param {string} [props.description]
+ * @param {import('react').ReactNode} props.children
  */
-export function SettingsView({ initialSection }) {
-  const { currentTheme, themeMode, accentColor, setThemeMode, previewTheme } = useTheme();
+function SettingsBlock({ title, description, children }) {
+  return (
+    <div className="flex flex-col gap-3 py-4 border-b border-separator-border last:border-b-0">
+      {(title || description) && (
+        <div className="flex flex-col gap-0.5">
+          {title && <span className="text-body-medium text-text-primary">{title}</span>}
+          {description && (
+            <span className="text-body-2-regular text-text-secondary">{description}</span>
+          )}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+// =============================================================================
+// Section panels
+// =============================================================================
+
+/**
+ * Appearance settings panel.
+ */
+function AppearancePanel() {
+  const { themeMode, setThemeMode } = useTheme();
 
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-6">
-        {/* Page heading */}
-        <header className="flex flex-col gap-1">
-          <h1 className="text-title-1-semibold text-text-primary">Settings</h1>
-          <p className="text-body-regular text-text-secondary">
-            Customize the appearance and behavior of your File Manager.
-          </p>
-        </header>
+    <div className="flex flex-col">
+      {/* Display mode */}
+      <SettingsRow
+        label="Display mode"
+        description={
+          themeMode === "system"
+            ? "Following your operating system's appearance."
+            : undefined
+        }
+      >
+        <ThemeModeSelector value={themeMode} onChange={setThemeMode} />
+      </SettingsRow>
 
-        {/* Appearance section */}
-        <SettingsSection
-          title="Appearance"
-          description="Choose a theme, adjust the display mode, and pick an accent color."
-          icon={RiPaletteLine}
-        >
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <label className="text-body-medium text-text-primary">Display mode</label>
-              <ThemeModeSelector value={themeMode} onChange={setThemeMode} />
-              {themeMode === "system" && (
-                <p className="text-caption-1-regular text-text-tertiary">
-                  Following your operating system&apos;s appearance preference.
-                </p>
-              )}
-            </div>
+      {/* Theme selection */}
+      <SettingsBlock
+        title="Theme"
+        description="Choose a visual theme for the application."
+      >
+        <ThemeSelector />
+      </SettingsBlock>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-body-medium text-text-primary">Theme</label>
-              <ThemeSelector />
-            </div>
+      {/* Accent color */}
+      <SettingsBlock description="Pick an accent color for interactive elements.">
+        <AccentColorPicker compact={false} />
+      </SettingsBlock>
+    </div>
+  );
+}
 
-            <div className="flex flex-col gap-2">
-              <AccentColorPicker compact={false} />
-            </div>
+/**
+ * Insights settings panel.
+ */
+function InsightsPanel() {
+  return (
+    <div className="flex flex-col">
+      <SettingsBlock
+        title="Scan exclusions"
+        description="Configure which directories are excluded from Insights filesystem scans."
+      >
+        <InsightsExclusionsSettings />
+      </SettingsBlock>
+    </div>
+  );
+}
+
+/**
+ * About panel — static app info.
+ */
+function AboutPanel() {
+  const rows = [
+    { label: "Application", value: "File Manager" },
+    { label: "Version", value: "1.0.0" },
+    { label: "Framework", value: "Next.js + BoardUI" },
+  ];
+
+  return (
+    <div className="flex flex-col">
+      <div className="py-1">
+        {rows.map((row, i) => (
+          <div
+            key={row.label}
+            className={cx(
+              "flex items-center justify-between py-3",
+              i < rows.length - 1 && "border-b border-separator-border",
+            )}
+          >
+            <span className="text-body-regular text-text-secondary">{row.label}</span>
+            <span className="text-body-medium text-text-primary">{row.value}</span>
           </div>
-        </SettingsSection>
+        ))}
+        <div className="flex items-center justify-between py-3 border-t border-separator-border">
+          <span className="text-body-regular text-text-secondary">Developer</span>
+          <a
+            href="https://jamesjomuad.github.io/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-body-medium text-accent-500 hover:text-accent-600 hover:underline"
+          >
+            James Jomuad
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* Editor section (placeholder) */}
-        <SettingsSection
-          title="Editor"
-          description="Configure the code editor appearance and behavior."
-          icon={RiSettings3Line}
-        >
-          <div className="py-4 text-center text-body-regular text-text-tertiary">
-            Editor settings are coming soon.
+// =============================================================================
+// Main Settings View
+// =============================================================================
+
+/**
+ * Settings view with two-column layout: nav rail + content panel.
+ * @param {Object} [props]
+ * @param {string} [props.initialSection] - Category to select on mount
+ */
+export function SettingsView({ initialSection } = {}) {
+  const { resetToDefaults, previewTheme, applyPreview, resetPreview } = useTheme();
+  const [activeCategory, setActiveCategory] = useState(initialSection || "appearance");
+  const contentRef = useRef(null);
+
+  const isPreviewing = previewTheme !== null;
+
+  // Scroll content to top when category changes
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [activeCategory]);
+
+  const handleCategoryChange = useCallback((id) => {
+    setActiveCategory(id);
+  }, []);
+
+  const activeLabel = CATEGORIES.find((c) => c.id === activeCategory)?.label || "Settings";
+
+  return (
+    <div className="flex h-full overflow-hidden">
+      {/* Nav rail */}
+      <nav
+        className="w-[200px] shrink-0 flex flex-col border-e border-separator-border bg-background-secondary-default"
+        aria-label="Settings categories"
+      >
+        <div className="p-3 pb-0">
+          <h2 className="text-caption-1-semibold uppercase tracking-wider text-text-tertiary px-3 mb-2">
+            Settings
+          </h2>
+        </div>
+        <div className="flex flex-col gap-0.5 p-2">
+          {CATEGORIES.map(({ id, label, icon: Icon }) => {
+            const isActive = activeCategory === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => handleCategoryChange(id)}
+                aria-current={isActive ? "page" : undefined}
+                className={cx(
+                  "flex items-center gap-2 px-3 py-2 rounded-lg text-start w-full",
+                  "text-body-medium transition-colors duration-150 outline-none",
+                  "focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+                  isActive
+                    ? "bg-background-selection text-text-primary"
+                    : "text-text-secondary hover:text-text-primary hover:bg-background-secondary-hover",
+                )}
+              >
+                <Icon className="size-4 shrink-0" aria-hidden />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Content panel */}
+      <div
+        ref={contentRef}
+        className="flex-1 min-w-0 overflow-auto"
+      >
+        {/* Sticky header with action buttons */}
+        <div className="sticky top-0 z-10 flex items-center justify-between px-8 py-4 bg-background-primary-default border-b border-separator-border">
+          <h1 className="text-title-2-semibold text-text-primary">{activeLabel}</h1>
+          <div className="flex items-center gap-2">
+            {activeCategory === "appearance" && (
+              <button
+                type="button"
+                onClick={resetToDefaults}
+                className={cx(
+                  "inline-flex items-center gap-1.5 h-8 px-3 rounded-lg",
+                  "text-caption-1-semibold text-text-secondary",
+                  "border border-border-button-default",
+                  "hover:text-text-primary hover:border-border-button-hover hover:bg-background-primary-hover",
+                  "transition-colors duration-200 outline-none",
+                  "focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+                )}
+              >
+                <RiRefreshLine className="size-3.5" aria-hidden />
+                Reset to defaults
+              </button>
+            )}
+            {isPreviewing && (
+              <>
+                <button
+                  type="button"
+                  onClick={resetPreview}
+                  className={cx(
+                    "inline-flex items-center gap-1.5 h-8 px-3 rounded-lg",
+                    "text-caption-1-semibold text-text-secondary",
+                    "hover:text-text-primary hover:bg-background-primary-hover",
+                    "transition-colors duration-200 outline-none",
+                    "focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+                  )}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={applyPreview}
+                  className={cx(
+                    "inline-flex items-center gap-1.5 h-8 px-3 rounded-lg",
+                    "text-caption-1-semibold text-text-white",
+                    "bg-accent-500 hover:bg-accent-600",
+                    "transition-colors duration-200 outline-none",
+                    "focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+                  )}
+                >
+                  Apply
+                </button>
+              </>
+            )}
           </div>
-        </SettingsSection>
+        </div>
 
-        {/* File Manager section (placeholder) */}
-        <SettingsSection
-          title="File Manager"
-          description="Set default view mode, sort order, and other file browsing preferences."
-          icon={RiFolderLine}
-        >
-          <div className="py-4 text-center text-body-regular text-text-tertiary">
-            File manager settings are coming soon.
-          </div>
-        </SettingsSection>
-
-        {/* Insights section */}
-        <SettingsSection
-          title="Insights Scan Exclusions"
-          description="Configure which directories are excluded from Insights filesystem scans."
-          icon={RiSearchLine}
-        >
-          <InsightsExclusionsSettings />
-        </SettingsSection>
-
-        {/* About section */}
-        <SettingsSection
-          title="About"
-          description="Application information and version."
-          icon={RiInformationLine}
-        >
-          <div className="flex flex-col gap-2 py-1">
-            <div className="flex items-center justify-between">
-              <span className="text-body-medium text-text-secondary">Application</span>
-              <span className="text-body-medium text-text-primary">File Manager</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-body-medium text-text-secondary">Version</span>
-              <span className="text-body-medium text-text-primary">1.0.0</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-body-medium text-text-secondary">Framework</span>
-              <span className="text-body-medium text-text-primary">Next.js + BoardUI</span>
-            </div>
-          </div>
-        </SettingsSection>
+        <div className="max-w-2xl mx-auto px-8 py-6">
+          {/* Section content */}
+          {activeCategory === "appearance" && <AppearancePanel />}
+          {activeCategory === "insights" && <InsightsPanel />}
+          {activeCategory === "about" && <AboutPanel />}
+        </div>
       </div>
     </div>
   );
